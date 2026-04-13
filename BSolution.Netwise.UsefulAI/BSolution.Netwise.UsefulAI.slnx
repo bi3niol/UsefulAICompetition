@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/.github/">
+    <File Path="copilot-instructions.md" />
+  </Folder>
+  <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.csproj" />
+</Solution>

@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7272",
+      "launchBrowser": false
+    }
+  }
+}
