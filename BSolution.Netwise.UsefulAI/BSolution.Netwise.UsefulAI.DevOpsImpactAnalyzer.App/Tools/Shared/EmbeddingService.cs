@@ -1,4 +1,4 @@
-﻿using Azure;
+﻿using Azure.AI.Projects;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Embeddings;
 
@@ -11,18 +11,12 @@ public interface IEmbeddingService
 
 public class EmbeddingService : IEmbeddingService
 {
-    // Azure.AI.OpenAI 2.x: EmbeddingClient (singular), deployment przekazywany w konstruktorze
     private readonly EmbeddingClient _client;
 
-    public EmbeddingService(IConfiguration config)
+    public EmbeddingService(AIProjectClient projectClient, IConfiguration config)
     {
-        var endpoint = config["AzureOpenAI:Endpoint"]!;
-        var apiKey = config["AzureOpenAI:ApiKey"]!;
         var deployment = config["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-3-large";
-
-        // GetEmbeddingClient (singular) — deployment name jest argumentem, nie częścią żądania
-        _client = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey))
-            .GetEmbeddingClient(deployment);
+        _client = projectClient.GetProjectOpenAIClient().GetEmbeddingClient(deployment);
     }
 
     public async Task<float[]> GetEmbeddingAsync(string text, CancellationToken ct = default)
@@ -31,7 +25,6 @@ public class EmbeddingService : IEmbeddingService
 
         var response = await _client.GenerateEmbeddingAsync(normalizedText, cancellationToken: ct);
 
-        // Azure.AI.OpenAI 2.x: ToFloats() zamiast .Data[0].Embedding
         return response.Value.ToFloats().ToArray();
     }
 

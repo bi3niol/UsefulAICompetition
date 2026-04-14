@@ -74,10 +74,8 @@ public class ImpactAnalysisPipeline
             Perform comprehensive research. Return structured JSON findings.
         """;
 
-        var result = await _researcher.RunAsync(prompt);
-
-        // Parsujemy strukturalny output Researchera
-        return JsonSerializer.Deserialize<ResearchFindings>(result)!;
+        var result = await _researcher.RunAsync<ResearchFindings>(prompt);
+        return result.Result;
     }
 
     // ── KROK 2 + 3 ──────────────────────────────────────────────────────────
@@ -87,7 +85,7 @@ public class ImpactAnalysisPipeline
     {
         var retries = 0;
         string report;
-        EditorDecision decision;
+        EditorDecision? decision = null;
 
         do
         {
@@ -132,13 +130,13 @@ public class ImpactAnalysisPipeline
             Type: {workItem.Type}
 
             Research findings:
-            {JsonSerializer.Serialize(findings, JsonOptions.Indented)}
+            {JsonSerializer.Serialize(findings)}
             {feedbackSection}
 
             Produce a complete markdown report.
         """;
 
-        return await _writer.RunAsync(prompt);
+        return (await _writer.RunAsync<string>("")).Result;
     }
 
     private async Task<EditorDecision> RunEditorAsync(
@@ -154,7 +152,7 @@ public class ImpactAnalysisPipeline
             Description: {{workItem.Description}}
 
             Research findings available:
-            {{JsonSerializer.Serialize(findings, JsonOptions.Indented)}}
+            {{JsonSerializer.Serialize(findings)}}
 
             Draft report to review:
             {{draftReport}}
@@ -162,8 +160,8 @@ public class ImpactAnalysisPipeline
             Return JSON: { "isApproved": bool, "feedback": "string or null" }
         """;
 
-        var result = await _editor.RunAsync(prompt);
-        return JsonSerializer.Deserialize<EditorDecision>(result)!;
+        var result = await _editor.RunAsync<EditorDecision>(prompt);
+        return result.Result;
     }
 
     // ── KROK 4 ──────────────────────────────────────────────────────────────

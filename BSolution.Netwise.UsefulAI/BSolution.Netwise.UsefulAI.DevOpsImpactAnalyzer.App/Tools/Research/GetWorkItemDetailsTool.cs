@@ -1,6 +1,8 @@
-﻿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+﻿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
 using Microsoft.Agents.AI;
 using System.ComponentModel;
+using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
@@ -54,6 +56,6 @@ public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
                 url = r.Url
             }),
             url = item.Url
-        }, JsonOptions.Pretty);
+        });
     }
 }

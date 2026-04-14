@@ -1,7 +1,4 @@
 ﻿using Microsoft.Extensions.AI;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
@@ -10,10 +7,10 @@ public class ResearchTools(
  SearchWikiTool searchWiki,
  GetWorkItemDetailsTool getWorkItemDetails)
 {
-    public IEnumerable<AITool> GetAll() =>
+    public IList<AITool> GetAll() =>
     [
-        AITool.FromMethod(searchWorkItems.SearchWorkItemsAsync),
-        AITool.FromMethod(searchWiki.SearchWikiAsync),
-        AITool.FromMethod(getWorkItemDetails.GetWorkItemDetailsAsync)
+        AIFunctionFactory.Create(searchWorkItems.SearchWorkItemsAsync),
+        AIFunctionFactory.Create(searchWiki.SearchWikiAsync),
+        AIFunctionFactory.Create(getWorkItemDetails.GetWorkItemDetailsAsync)
     ];
 }

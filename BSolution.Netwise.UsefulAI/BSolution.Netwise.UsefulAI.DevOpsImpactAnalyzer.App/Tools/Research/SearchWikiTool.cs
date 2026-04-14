@@ -66,7 +66,7 @@ public class SearchWikiTool(
                 contentExcerpt = TruncateText(r.ContentExcerpt, 500),
                 url = r.Url
             })
-        }, JsonOptions.Pretty);
+        });
     }
 
     private static string? TruncateText(string? text, int maxLength)
