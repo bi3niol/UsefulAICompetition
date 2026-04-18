@@ -3,6 +3,7 @@ using Azure.Identity;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App;
@@ -13,13 +14,15 @@ public class ImpactAnalysisPipeline
     private readonly AIAgent _writer;
     private readonly AIAgent _editor;
     private readonly AIAgent _sender;
+    private readonly ILogger<ImpactAnalysisPipeline> _logger;
 
-    private const int MaxEditorRetries = 2; 
+    private const int MaxEditorRetries = 2;
 
     public ImpactAnalysisPipeline(
         AIProjectClient projectClient,
         ResearchTools researchTools,
-        SenderTools senderTools)
+        SenderTools senderTools,
+        ILogger<ImpactAnalysisPipeline> logger)
     {
         _researcher = projectClient.AsAIAgent(
             model: "gpt-4o",
@@ -38,11 +41,12 @@ public class ImpactAnalysisPipeline
             model: "gpt-4o",
             instructions: AgentPrompts.SenderPrompt,
             tools: senderTools.GetAll());
+        _logger = logger;
     }
 
     public async Task RunAsync(WorkItemEvent workItem)
     {
-        Console.WriteLine($"[PIPELINE] Starting analysis for WI#{workItem.Id}");
+        _logger.LogInformation("[PIPELINE] Starting analysis for WI#{WorkItemId}", workItem.Id);
 
         // KROK 1: Researcher zbiera dane
         var findings = await RunResearcherAsync(workItem);
@@ -53,13 +57,13 @@ public class ImpactAnalysisPipeline
         // KROK 4: Sender zapisuje wynik
         await RunSenderAsync(workItem.Id, approvedReport);
 
-        Console.WriteLine($"[PIPELINE] Analysis complete for WI#{workItem.Id}");
+        _logger.LogInformation("[PIPELINE] Analysis complete for WI#{WorkItemId}", workItem.Id);
     }
 
     // ── KROK 1 ──────────────────────────────────────────────────────────────
     private async Task<ResearchFindings> RunResearcherAsync(WorkItemEvent workItem)
     {
-        Console.WriteLine($"[RESEARCHER] Searching DevOps items and WIKI...");
+        _logger.LogInformation("[RESEARCHER] Searching DevOps items and WIKI...");
 
         var prompt = $"""
             New work item to analyze:
@@ -90,16 +94,16 @@ public class ImpactAnalysisPipeline
         do
         {
             // WRITER: produkuje raport
-            Console.WriteLine($"[WRITER] Generating report (attempt {retries + 1})...");
+            _logger.LogInformation("[WRITER] Generating report (attempt {Attempt})...", retries + 1);
             report = await RunWriterAsync(workItem, findings,
-                previousFeedback: retries > 0 ? decision!.Feedback : null);
+                previousFeedback: decision?.Feedback);
 
             // EDITOR: ocenia raport
-            Console.WriteLine($"[EDITOR] Reviewing report...");
+            _logger.LogInformation("[EDITOR] Reviewing report...");
             decision = await RunEditorAsync(workItem, findings, report);
 
             if (!decision.IsApproved)
-                Console.WriteLine($"[EDITOR] Rejected. Feedback: {decision.Feedback}");
+                _logger.LogWarning("[EDITOR] Rejected. Feedback: {Feedback}", decision.Feedback);
 
             retries++;
 
@@ -108,7 +112,7 @@ public class ImpactAnalysisPipeline
         if (!decision.IsApproved)
         {
             // Po max retry — użyj ostatniego raportu z adnotacją
-            Console.WriteLine($"[EDITOR] Max retries reached, using last draft.");
+            _logger.LogWarning("[EDITOR] Max retries reached, using last draft.");
             report = $"> ⚠️ Note: Report may be incomplete.\n\n{report}";
         }
 
@@ -136,7 +140,7 @@ public class ImpactAnalysisPipeline
             Produce a complete markdown report.
         """;
 
-        return (await _writer.RunAsync<string>("")).Result;
+        return (await _writer.RunAsync<string>(prompt)).Result;
     }
 
     private async Task<EditorDecision> RunEditorAsync(
@@ -167,7 +171,7 @@ public class ImpactAnalysisPipeline
     // ── KROK 4 ──────────────────────────────────────────────────────────────
     private async Task RunSenderAsync(int workItemId, string report)
     {
-        Console.WriteLine($"[SENDER] Posting report to WI#{workItemId}...");
+        _logger.LogInformation("[SENDER] Posting report to WI#{WorkItemId}...", workItemId);
 
         var prompt = $"""
             Post this approved impact analysis report as a comment 
