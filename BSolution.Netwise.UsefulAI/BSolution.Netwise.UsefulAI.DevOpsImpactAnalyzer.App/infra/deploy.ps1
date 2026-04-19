@@ -119,7 +119,7 @@ Write-Host "  Function App URL   : $($outputs.functionAppUrl.value)"
 Write-Host "  Key Vault URI      : $($outputs.keyVaultUri.value)"
 Write-Host "  AI Search Endpoint : $($outputs.aiSearchEndpoint.value)"
 Write-Host "  Azure OpenAI EP    : $($outputs.openAiEndpoint.value)"
-Write-Host "  Foundry Hub        : $($outputs.foundryHubName.value)"
+Write-Host "  Foundry Account    : $($outputs.foundryAccountName.value)"
 Write-Host "  Foundry Project    : $($outputs.foundryProjectName.value)"
 Write-Host ''
 Write-Host '⚠️  Foundry Project Endpoint (verify in Azure AI Foundry portal → Project overview → API endpoint):' -ForegroundColor Yellow

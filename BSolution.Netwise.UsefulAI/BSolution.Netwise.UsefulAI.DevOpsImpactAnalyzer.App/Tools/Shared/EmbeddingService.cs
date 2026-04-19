@@ -1,4 +1,6 @@
-﻿using Azure.AI.Projects;
+﻿using Azure;
+using Azure.AI.OpenAI;
+using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Embeddings;
 
@@ -13,10 +15,21 @@ public class EmbeddingService : IEmbeddingService
 {
     private readonly EmbeddingClient _client;
 
-    public EmbeddingService(AIProjectClient projectClient, IConfiguration config)
+    public EmbeddingService(IConfiguration config)
     {
-        var deployment = config["AzureOpenAI:EmbeddingDeployment"] ?? "text-embedding-3-large";
-        _client = projectClient.GetProjectOpenAIClient().GetEmbeddingClient(deployment);
+        var endpoint = config["AzureOpenAI:Endpoint"]
+            ?? throw new InvalidOperationException("Missing config: AzureOpenAI:Endpoint");
+
+        var deployment = config["AzureOpenAI:EmbeddingDeployment"]
+            ?? "text-embedding-3-large";
+
+        var apiKey = config["AzureOpenAI:ApiKey"];
+
+        AzureOpenAIClient azureClient = string.IsNullOrWhiteSpace(apiKey)
+            ? new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential())
+            : new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+
+        _client = azureClient.GetEmbeddingClient(deployment);
     }
 
     public async Task<float[]> GetEmbeddingAsync(string text, CancellationToken ct = default)

@@ -13,7 +13,7 @@ public class WorkItemIndexerFunction(
     /// Pierwsze uruchomienie (brak historii) → pełna synchronizacja.
     /// Kolejne → synchronizacja przyrostowa od ostatniego uruchomienia.
     /// </summary>
-    [Function(nameof(WorkItemIndexerFunction))]
+    //[Function(nameof(WorkItemIndexerFunction))]
     public async Task Run(
         [TimerTrigger("0 */15 * * * *")] TimerInfo timerInfo,
         CancellationToken ct)

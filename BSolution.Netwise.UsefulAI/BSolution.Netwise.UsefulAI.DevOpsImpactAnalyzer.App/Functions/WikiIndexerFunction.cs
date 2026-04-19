@@ -14,7 +14,7 @@ public class WikiIndexerFunction(
     /// </summary>
     [Function(nameof(WikiIndexerFunction))]
     public async Task Run(
-        [TimerTrigger("0 0 * * * *")] TimerInfo timerInfo,
+        [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
         CancellationToken ct)
     {
         if (timerInfo.IsPastDue)

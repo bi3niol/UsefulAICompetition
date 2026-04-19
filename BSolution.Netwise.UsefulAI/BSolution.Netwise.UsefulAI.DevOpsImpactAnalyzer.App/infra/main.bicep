@@ -88,7 +88,7 @@ output aiSearchEndpoint string      = aiModule.outputs.aiSearchEndpoint
 output aiSearchName string          = aiModule.outputs.aiSearchName
 output openAiEndpoint string        = aiModule.outputs.openAiEndpoint
 output openAiName string            = aiModule.outputs.openAiName
-output foundryHubName string        = aiModule.outputs.hubName
-output foundryProjectName string    = aiModule.outputs.projectName
-// NOTE: Verify the exact endpoint value in Azure AI Foundry portal → Project overview → API endpoint
+output foundryAccountName string    = aiModule.outputs.foundryAccountName
+output foundryProjectName string    = aiModule.outputs.foundryProjectName
+// Foundry project endpoint — consumed by Microsoft.Agents.AI.Foundry / Azure.AI.Projects SDKs
 output foundryProjectEndpoint string = aiModule.outputs.foundryProjectEndpoint
