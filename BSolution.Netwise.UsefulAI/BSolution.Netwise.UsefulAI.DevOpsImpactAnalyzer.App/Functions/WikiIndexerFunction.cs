@@ -12,7 +12,7 @@ public class WikiIndexerFunction(
     /// Pełna synchronizacja WIKI co godzinę.
     /// WIKI zmienia się rzadziej niż work itemy — brak etapu incremental.
     /// </summary>
-    [Function(nameof(WikiIndexerFunction))]
+    //[Function(nameof(WikiIndexerFunction))]
     public async Task Run(
         [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
         CancellationToken ct)

@@ -78,6 +78,7 @@ public class SearchIndexManager : IHostedService
 
             new SearchableField("description"),
             new SearchableField("acceptanceCriteria"),
+            new SearchableField("comments"),
 
             new SimpleField("areaPath", SearchFieldDataType.String)
                 { IsFilterable = true, IsFacetable = true },
@@ -126,7 +127,8 @@ public class SearchIndexManager : IHostedService
                     ContentFields =
                     {
                         new SemanticField("description"),
-                        new SemanticField("acceptanceCriteria")
+                        new SemanticField("acceptanceCriteria"),
+                        new SemanticField("comments")
                     },
                     KeywordsFields =
                     {

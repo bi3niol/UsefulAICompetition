@@ -13,17 +13,17 @@ public class WorkItemIndexerFunction(
     /// Pierwsze uruchomienie (brak historii) → pełna synchronizacja.
     /// Kolejne → synchronizacja przyrostowa od ostatniego uruchomienia.
     /// </summary>
-    //[Function(nameof(WorkItemIndexerFunction))]
+    [Function(nameof(WorkItemIndexerFunction))]
     public async Task Run(
-        [TimerTrigger("0 */15 * * * *")] TimerInfo timerInfo,
+        [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
         CancellationToken ct)
     {
         if (timerInfo.IsPastDue)
             logger.LogWarning("[INDEXER-FUNC] Timer is running late — previous execution was delayed.");
-
+        
         // ScheduleStatus?.Last jest null przy pierwszym uruchomieniu
         var lastRun = timerInfo.ScheduleStatus?.Last;
-        var isFirstRun = lastRun is null || lastRun == default(DateTime);
+        var isFirstRun = lastRun is null || lastRun == default(DateTime) || true;
 
         try
         {

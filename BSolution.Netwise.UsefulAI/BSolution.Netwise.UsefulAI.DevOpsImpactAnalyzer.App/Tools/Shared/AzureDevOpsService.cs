@@ -21,6 +21,9 @@ public interface IAzureDevOpsService
     /// <summary>Pobiera szczegóły wielu work itemów w jednym żądaniu (max 200 ID).</summary>
     Task<List<WorkItemDetail>> GetWorkItemsBatchAsync(IEnumerable<int> ids, CancellationToken ct = default);
 
+    /// <summary>Pobiera komentarze dla pojedynczego work itemu (osobny endpoint w DevOps API).</summary>
+    Task<List<WorkItemComment>> GetWorkItemCommentsAsync(int workItemId, CancellationToken ct = default);
+
     /// <summary>Zwraca listę wszystkich wiki w projekcie.</summary>
     Task<List<WikiInfo>> GetWikiListAsync(CancellationToken ct = default);
 
@@ -81,6 +84,38 @@ public class AzureDevOpsService : IAzureDevOpsService
                $"URL: https://dev.azure.com/{_organization}/{_project}/_workitems/edit/{workItemId}";
     }
 
+    public async Task<List<WorkItemComment>> GetWorkItemCommentsAsync(
+        int workItemId, CancellationToken ct = default)
+    {
+        // Komentarze nie są zwracane w $expand=all — wymagają osobnego endpointu (preview).
+        var url = $"{_project}/_apis/wit/workItems/{workItemId}/comments" +
+                  $"?api-version={_apiVersion}-preview.4";
+
+        var response = await _http.GetAsync(url, ct);
+
+        // Brak komentarzy lub starszy projekt bez wsparcia → traktujemy jako pustą listę
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return json?["comments"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(c => new WorkItemComment
+            {
+                Id = c["id"]?.GetValue<int>() ?? 0,
+                Text = c["text"]?.ToString(),
+                CreatedBy = c["createdBy"]?["displayName"]?.ToString(),
+                CreatedDate = c["createdDate"]?.GetValue<DateTime?>(),
+                ModifiedBy = c["modifiedBy"]?["displayName"]?.ToString(),
+                ModifiedDate = c["modifiedDate"]?.GetValue<DateTime?>()
+            })
+            .OrderBy(c => c.CreatedDate ?? DateTime.MinValue)
+            .ToList() ?? [];
+    }
+
     // ── WIQL ────────────────────────────────────────────────────────────────
 
     public async Task<List<int>> QueryWorkItemIdsAsync(string wiql, CancellationToken ct = default)
@@ -90,6 +125,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
         var response = await _http.PostAsync(url, content, ct);
+        var resStr = await response.Content.ReadAsStringAsync();
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);

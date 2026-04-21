@@ -145,42 +145,8 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       use32BitWorkerProcess: false
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
-      appSettings: [
-        // Keyless storage auth via managed identity (no connection string needed)
-        {
-          name: 'AzureWebJobsStorage__accountName'
-          value: storage.name
-        }
-        {
-          name: 'AzureWebJobsStorage__credential'
-          value: 'managedidentity'
-        }
-        {
-          name: 'FUNCTIONS_EXTENSION_VERSION'
-          value: '~4'
-        }
-        {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'dotnet-isolated'
-        }
-        {
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsights.properties.ConnectionString
-        }
-        {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
-        }
-        // ── Placeholders — replace values with Key Vault references after deployment ──
-        // {
-        //   name: 'Foundry__Endpoint'
-        //   value: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/Foundry--Endpoint)'
-        // }
-        // {
-        //   name: 'AzureDevOps__PersonalAccessToken'
-        //   value: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--PersonalAccessToken)'
-        // }
-      ]
+      // App settings are managed by the separate `functionAppSettings` resource below
+      // so they can dependsOn the Key Vault role assignment without creating a cycle.
     }
   }
 }
@@ -195,6 +161,43 @@ resource kvSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     principalId: functionApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
+}
+
+// ── App Settings (separate resource so it can dependsOn the KV role) ─────────
+// IMPORTANT: a `sites/config 'appsettings'` resource REPLACES all app settings on the
+// Function App, so every setting (including system ones) must be listed here.
+// Secret names in Key Vault use `--` (KV disallows `:` and `__`); app setting names use
+// `__` which the .NET configuration provider maps to `:` in IConfiguration.
+
+resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
+  parent: functionApp
+  name: 'appsettings'
+  properties: {
+    // Keyless storage auth via managed identity (no connection string needed)
+    AzureWebJobsStorage__accountName: storage.name
+    AzureWebJobsStorage__credential: 'managedidentity'
+    FUNCTIONS_EXTENSION_VERSION: '~4'
+    FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
+    APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
+    WEBSITE_RUN_FROM_PACKAGE: '1'
+
+    // ── Application secrets sourced from Key Vault ──
+    Foundry__Endpoint:                  '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/Foundry--Endpoint)'
+    AzureSearch__Endpoint:              '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureSearch--Endpoint)'
+    AzureSearch__ApiKey:                '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureSearch--ApiKey)'
+    AzureOpenAI__Endpoint:              '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureOpenAI--Endpoint)'
+    AzureOpenAI__ApiKey:                '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureOpenAI--ApiKey)'
+    AzureOpenAI__ApiVersion:            '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureOpenAI--ApiVersion)'
+    AzureOpenAI__EmbeddingDeployment:   '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureOpenAI--EmbeddingDeployment)'
+    AzureDevOps__Organization:          '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--Organization)'
+    AzureDevOps__Project:               '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--Project)'
+    AzureDevOps__PersonalAccessToken:   '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--PersonalAccessToken)'
+  }
+  // Ensure RBAC propagation finishes before the Function App tries to resolve the
+  // @Microsoft.KeyVault(...) references on cold start.
+  dependsOn: [
+    kvSecretsUserRole
+  ]
 }
 
 // ── Outputs ───────────────────────────────────────────────────────────────────

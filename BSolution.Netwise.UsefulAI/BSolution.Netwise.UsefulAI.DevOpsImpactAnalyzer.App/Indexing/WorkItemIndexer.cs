@@ -34,10 +34,13 @@ public class WorkItemIndexer : IWorkItemIndexer
 
     // Limity Azure Search i DevOps API
     private const int SearchUploadBatchSize = 500;
-    private const int DevOpsBatchSize = 200;
+    private const int DevOpsBatchSize = 100;
 
     // Throttling wywołań Embedding API
-    private const int MaxParallelEmbeddings = 4;
+    private const int MaxParallelEmbeddings = 2;
+
+    // Throttling wywołań DevOps REST API (np. pobieranie komentarzy per work item)
+    private const int MaxParallelDevOpsRequests = 6;
 
     private static readonly string[] IndexableTypes =
     [
@@ -97,12 +100,50 @@ public class WorkItemIndexer : IWorkItemIndexer
                 i + 1, i + batch.Count, ids.Count);
 
             var workItems = await _devOps.GetWorkItemsBatchAsync(batch, ct);
+            await EnrichWithCommentsAsync(workItems, ct);
+
             var documents = await BuildSearchDocumentsAsync(workItems, ct);
 
             await UploadToSearchAsync(documents, ct);
         }
 
         _logger.LogInformation("[INDEXER] Sync complete. Total IDs processed: {Total}.", ids.Count);
+    }
+
+    // ── Comments Enrichment ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Komentarze nie są zwracane w batchowym <c>workitems?ids=...&amp;$expand=all</c> ani w żadnym
+    /// innym endpointie agregującym — DevOps REST API wymaga osobnego żądania per work item.
+    /// Pobieramy je równolegle z throttlingiem, by nie przekroczyć limitów API.
+    /// </summary>
+    private async Task EnrichWithCommentsAsync(List<WorkItemDetail> workItems, CancellationToken ct)
+    {
+        if (workItems.Count == 0) return;
+
+        var semaphore = new SemaphoreSlim(MaxParallelDevOpsRequests, MaxParallelDevOpsRequests);
+
+        var tasks = workItems.Select(async wi =>
+        {
+            await semaphore.WaitAsync(ct);
+            try
+            {
+                wi.Comments = await _devOps.GetWorkItemCommentsAsync(wi.Id, ct);
+                await Task.Delay(20, ct); // Krótkie opóźnienie między żądaniami, by rozłożyć obciążenie
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "[INDEXER] Failed to fetch comments for WI#{Id} — continuing without them.", wi.Id);
+                wi.Comments = [];
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
     }
 
     // ── Embedding + Document Building ────────────────────────────────────────
@@ -160,8 +201,10 @@ public class WorkItemIndexer : IWorkItemIndexer
             var docId = n == 0 ? wi.Id.ToString() : $"{wi.Id}-{n}";
             var vector = await _embedding.GetEmbeddingAsync(chunks[n], ct);
 
-            // Pola tekstowe (description, AC) tylko w primary chunk — dla search result display
+            // Pola tekstowe (description, AC, comments) tylko w primary chunk — dla search result display
             documents.Add(BuildSearchDocument(wi, docId, isPrimaryChunk: n == 0, vector));
+
+            await Task.Delay(100, ct); // Krótkie opóźnienie między embeddingami, by rozłożyć obciążenie
         }
 
         _logger.LogDebug("[INDEXER] WI#{Id} → {Count} chunk(s).", wi.Id, chunks.Count);
@@ -182,6 +225,8 @@ public class WorkItemIndexer : IWorkItemIndexer
                 indexBatch,
                 new IndexDocumentsOptions { ThrowOnAnyError = true },
                 ct);
+
+            await Task.Delay(120, ct); // Krótkie opóźnienie między batchami, by rozłożyć obciążenie
 
             _logger.LogInformation("[INDEXER] Uploaded {N} document(s) to '{Index}'.",
                 batch.Count, WorkItemsIndex);
@@ -213,6 +258,7 @@ public class WorkItemIndexer : IWorkItemIndexer
         {
             doc["description"] = StripHtml(wi.Description) ?? string.Empty;
             doc["acceptanceCriteria"] = StripHtml(wi.AcceptanceCriteria) ?? string.Empty;
+            doc["comments"] = FormatComments(wi.Comments) ?? string.Empty;
         }
 
         if (wi.ChangedDate.HasValue)
@@ -227,8 +273,11 @@ public class WorkItemIndexer : IWorkItemIndexer
     {
         var types = string.Join(", ", IndexableTypes.Select(t => $"'{t}'"));
 
+        // WIQL używa precyzji dziennej dla pól daty — nie wolno podawać godziny.
+        // Odejmujemy 1 dzień, by nie zgubić elementów zmienionych tego samego dnia
+        // co poprzednia synchronizacja (drobne duplikaty są filtrowane przez MergeOrUpload).
         var sinceClause = since.HasValue
-            ? $"AND [System.ChangedDate] >= '{since.Value:yyyy-MM-ddTHH:mm:ssZ}'"
+            ? $"AND [System.ChangedDate] >= '{since.Value.Date.AddDays(-1):yyyy-MM-dd}'"
             : string.Empty;
 
         return $"""
@@ -287,7 +336,39 @@ public class WorkItemIndexer : IWorkItemIndexer
             sb.Append(ac);
         }
 
+        var comments = FormatComments(wi.Comments);
+        if (!string.IsNullOrWhiteSpace(comments))
+        {
+            if (sb.Length > 0) sb.AppendLine();
+            sb.AppendLine();
+            sb.AppendLine("Comments:");
+            sb.Append(comments);
+        }
+
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Formatuje komentarze do pojedynczego bloku tekstu w porządku chronologicznym.
+    /// Każdy komentarz: [yyyy-MM-dd by Author]: tekst (HTML stripped).
+    /// </summary>
+    private static string? FormatComments(IReadOnlyList<Models.WorkItemComment>? comments)
+    {
+        if (comments is null || comments.Count == 0) return null;
+
+        var sb = new StringBuilder();
+        foreach (var c in comments)
+        {
+            var text = StripHtml(c.Text);
+            if (string.IsNullOrWhiteSpace(text)) continue;
+
+            var date = c.CreatedDate?.ToString("yyyy-MM-dd") ?? "unknown";
+            var author = string.IsNullOrWhiteSpace(c.CreatedBy) ? "unknown" : c.CreatedBy;
+            sb.Append('[').Append(date).Append(" by ").Append(author).Append("]: ");
+            sb.AppendLine(text);
+        }
+
+        return sb.Length == 0 ? null : sb.ToString().TrimEnd();
     }
 
     /// <summary>

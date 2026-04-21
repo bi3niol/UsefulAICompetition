@@ -20,6 +20,7 @@ public class WorkItemDetail
     public DateTime? CreatedDate { get; set; }
     public DateTime? ChangedDate { get; set; }
     public List<WorkItemRelation> Relations { get; set; } = [];
+    public List<WorkItemComment> Comments { get; set; } = [];
     public string? Url { get; set; }
 }
 
@@ -28,6 +29,16 @@ public class WorkItemRelation
     public string? RelationType { get; set; }
     public string? Url { get; set; }
     public int? RelatedId { get; set; }
+}
+
+public class WorkItemComment
+{
+    public int Id { get; set; }
+    public string? Text { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? CreatedDate { get; set; }
+    public string? ModifiedBy { get; set; }
+    public DateTime? ModifiedDate { get; set; }
 }
 
 public class WikiPageDetail
