@@ -25,6 +25,7 @@ public static class ToolsConfig
         services.AddSingleton<SearchWorkItemsTool>();
         services.AddSingleton<SearchWikiTool>();
         services.AddSingleton<GetWorkItemDetailsTool>();
+        services.AddSingleton<GetWikiPageDetailsTool>();
         services.AddSingleton<ResearchTools>();
 
         // Sender tools

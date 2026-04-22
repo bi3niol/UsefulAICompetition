@@ -54,6 +54,9 @@ public class AzureSearchService : IAzureSearchService
             Filter = filter,
             Size = top,
 
+            // Wymagane, aby SemanticSearch (caption/answer/reranker) zadziałał
+            QueryType = SearchQueryType.Semantic,
+
             // Hybrid search: vector + keyword (BM25) + semantic reranker
             VectorSearch = new VectorSearchOptions
             {
@@ -61,7 +64,7 @@ public class AzureSearchService : IAzureSearchService
                 {
                     new VectorizedQuery(vector)
                     {
-                        Fields             = { VectorFieldWorkItems },
+                        Fields = { VectorFieldWorkItems },
                         KNearestNeighborsCount = top * 2  // pobieramy więcej, filtrujemy po score
                     }
                 }
@@ -76,13 +79,13 @@ public class AzureSearchService : IAzureSearchService
             },
 
             // Pola które chcemy zwrócić (projekcja)
-            Select =
-            {
-                "id", "title", "type", "state", "description",
-                "acceptanceCriteria", "areaPath", "tags",
-                "path", "wikiId", "contentExcerpt",
-                "url", "createdDate", "changedDate"
-            }
+            //Select =
+            //{
+            //    "id", "title", "type", "state", "description",
+            //    "acceptanceCriteria", "areaPath", "tags",
+            //    "path", "wikiId", "contentExcerpt",
+            //    "url", "createdDate", "changedDate"
+            //}
         };
 
         // Uruchamiamy hybrid search (keyword query pusta = tylko vector + semantic)
