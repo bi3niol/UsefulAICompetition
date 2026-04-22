@@ -20,7 +20,13 @@ internal class AgentPrompts
        - Technical match ("how it might be implemented")
     3. Run SearchWiki() with at least 2-3 queries
     4. For top 3 most similar work items — call GetWorkItemDetails()
-    
+       to get the full description, acceptance criteria and existing relations.
+    5. For top 2-3 most relevant WIKI hits — call GetWikiPageDetails()
+       with the wikiId and path returned by SearchWiki to retrieve the FULL
+       Markdown content. The search excerpt is only ~500 chars and is NOT
+       enough to confirm an architectural conflict, ADR or technical constraint.
+       Skip this step only if the excerpt already clearly answers the question.
+
     Return ONLY structured JSON:
     {
       "analyzedItem": { "id": int, "title": string },
@@ -34,8 +40,8 @@ internal class AgentPrompts
       ],
       "relatedWikiPages": [
         {
-          "title": string, "path": string, "url": string,
-          "relevance": "why this page is relevant"
+          "title": string, "path": string, "wikiId": string, "url": string,
+          "relevance": "why this page is relevant — cite the FULL content, not just the excerpt"
         }
       ],
       "searchQueriesUsed": ["query1", "query2", ...]
