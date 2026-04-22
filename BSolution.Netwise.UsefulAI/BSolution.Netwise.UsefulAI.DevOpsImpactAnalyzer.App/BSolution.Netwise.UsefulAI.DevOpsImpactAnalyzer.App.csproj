@@ -9,6 +9,22 @@
     <UserSecretsId>63bb3011-52e4-4c59-8779-14f6c7c614be</UserSecretsId>
   </PropertyGroup>
 
+  <!--
+    Workaround dla Windows MAX_PATH (260 znaków) w głęboko zagnieżdżonej ścieżce repo.
+    Microsoft.Azure.Functions.Worker.Sdk generuje sub-projekt WorkerExtensions w
+    obj\<Config>\<TFM>\WorkerExtensions\ a wewnątrz niego buduje do bin\Release\net8.0\.
+    Po dodaniu Microsoft.Azure.Functions.Worker.Extensions.ServiceBus pojawia się
+    transitive runtime asset runtimes\win\lib\netstandard2.0\System.Security.Cryptography.ProtectedData.dll,
+    który po skopiowaniu do tej ścieżki przekracza 260 znaków i build wywala MSB3030.
+
+    Worker.Sdk jawnie wyłącza Directory.Build.props/targets dla sub-projektu (nie da się
+    nadpisać wersji paczki tą drogą). Zamiast tego przekierowujemy CAŁY katalog
+    sub-projektu do krótkiej, per-user ścieżki w LOCALAPPDATA.
+  -->
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <ExtensionsCsProjDirectory>$(LOCALAPPDATA)\AzFuncWorkerExt\$(MSBuildProjectName)\$(Configuration)\$(TargetFramework)</ExtensionsCsProjDirectory>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Azure.AI.Inference" Version="1.0.0-beta.5" />
@@ -20,6 +36,7 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.51.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" Version="2.50.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.22.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.3.1" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.7" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="6.0.1" />

@@ -44,7 +44,7 @@ public class ImpactAnalysisPipeline
         _logger = logger;
     }
 
-    public async Task RunAsync(WorkItemEvent workItem)
+    public async Task<string> RunAsync(WorkItemEvent workItem)
     {
         _logger.LogInformation("[PIPELINE] Starting analysis for WI#{WorkItemId}", workItem.Id);
 
@@ -54,10 +54,10 @@ public class ImpactAnalysisPipeline
         // KROK 2 + 3: Writer pisze → Editor ocenia (z możliwością iteracji)
         var approvedReport = await RunWriterEditorLoopAsync(workItem, findings);
 
-        // KROK 4: Sender zapisuje wynik
-        await RunSenderAsync(workItem.Id, approvedReport);
-
+        // KROK 4: Sender wyłączony — raport zwracany do wywołującego
         _logger.LogInformation("[PIPELINE] Analysis complete for WI#{WorkItemId}", workItem.Id);
+
+        return approvedReport;
     }
 
     // ── KROK 1 ──────────────────────────────────────────────────────────────

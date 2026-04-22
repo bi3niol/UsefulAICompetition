@@ -8,6 +8,9 @@ param environment string
 param aspSku string
 param tags object
 
+@description('Service Bus namespace name. The Function App uses managed identity (no connection string) to authenticate against Service Bus, so we only need the FQDN.')
+param serviceBusNamespaceName string
+
 // ── Naming ────────────────────────────────────────────────────────────────────
 // Storage account: lowercase alphanumeric only, max 24 chars
 
@@ -180,6 +183,11 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
     WEBSITE_RUN_FROM_PACKAGE: '1'
+
+    // ── Service Bus (keyless via managed identity) ──
+    // Connection name "ServiceBus" used by ServiceBusTrigger / ServiceBusOutput bindings
+    // in the work item indexing pipeline (WorkItemIndexer/Fetch/BuildDocuments/Upload).
+    ServiceBus__fullyQualifiedNamespace: '${serviceBusNamespaceName}.servicebus.windows.net'
 
     // ── Application secrets sourced from Key Vault ──
     Foundry__Endpoint:                  '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/Foundry--Endpoint)'

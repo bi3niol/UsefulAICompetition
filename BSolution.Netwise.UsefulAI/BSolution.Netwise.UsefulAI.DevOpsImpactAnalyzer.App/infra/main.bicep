@@ -50,6 +50,11 @@ resource appRG 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 }
 
 // ── Function App (deployed first — we need its managed identity principalId) ──
+// Service Bus namespace name is computed deterministically here so the Function App
+// can pre-bake the FQDN into its app settings without depending on the SB module's
+// outputs (which would create a circular ordering with the RBAC role assignment).
+
+var serviceBusNamespaceName = '${resourcePrefix}-sb-${environment}'
 
 module appModule 'modules/functionapp.bicep' = {
   name: 'deploy-functionapp'
@@ -60,6 +65,22 @@ module appModule 'modules/functionapp.bicep' = {
     environment: environment
     aspSku: aspSku
     tags: tags
+    serviceBusNamespaceName: serviceBusNamespaceName
+  }
+}
+
+// ── Service Bus (queues for the work item indexing pipeline) ──────────────────
+
+module serviceBusModule 'modules/servicebus.bicep' = {
+  name: 'deploy-servicebus'
+  scope: appRG
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    environment: environment
+    tags: tags
+    functionAppPrincipalId: appModule.outputs.functionAppPrincipalId
+    serviceBusNamespaceName: serviceBusNamespaceName
   }
 }
 

@@ -18,7 +18,12 @@ public static class ToolsConfig
 
         // Indexing — SearchIndexManager uruchamia się jako hosted service przy starcie
         services.AddHostedService<SearchIndexManager>();
-        services.AddSingleton<IWorkItemIndexer, WorkItemIndexer>();
+
+        // Pipeline indeksacji work itemów (Service Bus) — 3 niezależne usługi po jednej per etap
+        services.AddSingleton<IWorkItemQueryService, WorkItemQueryService>();
+        services.AddSingleton<IWorkItemDocumentBuilder, WorkItemDocumentBuilder>();
+        services.AddSingleton<IWorkItemSearchUploader, WorkItemSearchUploader>();
+
         services.AddSingleton<IWikiIndexer, WikiIndexer>();
 
         // Research tools

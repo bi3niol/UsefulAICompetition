@@ -1,55 +1,58 @@
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing.Messages;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 
+/// <summary>
+/// Etap 1/4 — Timer trigger.
+/// Wykonuje wyłącznie zapytanie WIQL i publikuje paczki ID work itemów na kolejce
+/// <c>workitem-ids</c>. Reszta przetwarzania (pobranie szczegółów, embedding, upload)
+/// odbywa się asynchronicznie przez kolejne funkcje konsumujące Service Bus.
+/// </summary>
 public class WorkItemIndexerFunction(
-    IWorkItemIndexer indexer,
+    IWorkItemQueryService queryService,
     ILogger<WorkItemIndexerFunction> logger)
 {
-    /// <summary>
-    /// Timer trigger co 15 minut.
-    /// Pierwsze uruchomienie (brak historii) → pełna synchronizacja.
-    /// Kolejne → synchronizacja przyrostowa od ostatniego uruchomienia.
-    /// </summary>
-    //[Function(nameof(WorkItemIndexerFunction))]
-    public async Task Run(
+    /// <summary>Liczba ID na pojedynczą wiadomość Service Bus (= rozmiar paczki dla DevOps batch fetch).</summary>
+    private const int IdsPerBatch = 100;
+
+    [Function(nameof(WorkItemIndexerFunction))]
+    [ServiceBusOutput("workitem-ids", Connection = "ServiceBus")]
+    public async Task<WorkItemIdsBatchMessage[]> Run(
         [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
         CancellationToken ct)
     {
         if (timerInfo.IsPastDue)
-            logger.LogWarning("[INDEXER-FUNC] Timer is running late — previous execution was delayed.");
-        
+            logger.LogWarning("[INDEXER-FUNC] Timer is running late.");
+
         // ScheduleStatus?.Last jest null przy pierwszym uruchomieniu
         var lastRun = timerInfo.ScheduleStatus?.Last;
-        var isFirstRun = lastRun is null || lastRun == default(DateTime) || true;
+        var isFirstRun = lastRun is null || lastRun == default(DateTime);
 
-        try
-        {
-            if (isFirstRun)
-            {
-                logger.LogInformation("[INDEXER-FUNC] First run detected — starting full sync...");
-                await indexer.RunFullSyncAsync(ct);
-            }
-            else
-            {
-                logger.LogInformation(
-                    "[INDEXER-FUNC] Incremental sync since {Since:O}...", lastRun);
-                await indexer.RunIncrementalSyncAsync(lastRun!.Value, ct);
-            }
+        DateTime? since = isFirstRun ? null : lastRun;
+        logger.LogInformation(
+            "[INDEXER-FUNC] Querying work item ids ({Mode})...",
+            isFirstRun ? "FULL" : $"INCREMENTAL since {lastRun:O}");
 
-            logger.LogInformation("[INDEXER-FUNC] Sync completed successfully.");
-        }
-        catch (OperationCanceledException)
+        var ids = await queryService.QueryIdsAsync(since, ct);
+
+        if (ids.Count == 0)
         {
-            logger.LogWarning("[INDEXER-FUNC] Sync was cancelled (function timeout or shutdown).");
-            throw;
+            logger.LogInformation("[INDEXER-FUNC] Nothing to index — no batches enqueued.");
+            return [];
         }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "[INDEXER-FUNC] Sync failed.");
-            throw;
-        }
+
+        var batches = ids
+            .Chunk(IdsPerBatch)
+            .Select(batch => new WorkItemIdsBatchMessage { Ids = batch.ToList() })
+            .ToArray();
+
+        logger.LogInformation(
+            "[INDEXER-FUNC] Enqueued {Batches} batch(es) ({TotalIds} id(s)) on 'workitem-ids'.",
+            batches.Length, ids.Count);
+
+        return batches;
     }
 }
