@@ -24,7 +24,10 @@ public static class ToolsConfig
         services.AddSingleton<IWorkItemDocumentBuilder, WorkItemDocumentBuilder>();
         services.AddSingleton<IWorkItemSearchUploader, WorkItemSearchUploader>();
 
-        services.AddSingleton<IWikiIndexer, WikiIndexer>();
+        // Pipeline indeksacji WIKI (Service Bus) — analogiczny podział na 3 etapy
+        services.AddSingleton<IWikiPageQueryService, WikiPageQueryService>();
+        services.AddSingleton<IWikiDocumentBuilder, WikiDocumentBuilder>();
+        services.AddSingleton<IWikiSearchUploader, WikiSearchUploader>();
 
         // Research tools
         services.AddSingleton<SearchWorkItemsTool>();

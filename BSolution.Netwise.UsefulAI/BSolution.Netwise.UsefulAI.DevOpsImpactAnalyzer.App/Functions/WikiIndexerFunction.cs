@@ -1,41 +1,44 @@
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing.Messages;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 
+/// <summary>
+/// Etap 1/4 — Timer trigger.
+/// Wykonuje wyłącznie enumerację wszystkich stron WIKI (lista wiki + płaska lista
+/// ścieżek per wiki) i publikuje pojedyncze wiadomości <see cref="WikiPageRefMessage"/>
+/// na kolejce <c>wiki-page-refs</c>. Reszta przetwarzania (pobranie treści, embedding,
+/// upload) odbywa się asynchronicznie przez kolejne funkcje konsumujące Service Bus.
+/// </summary>
 public class WikiIndexerFunction(
-    IWikiIndexer indexer,
+    IWikiPageQueryService queryService,
     ILogger<WikiIndexerFunction> logger)
 {
-    /// <summary>
-    /// Pełna synchronizacja WIKI co godzinę.
-    /// WIKI zmienia się rzadziej niż work itemy — brak etapu incremental.
-    /// </summary>
-    //[Function(nameof(WikiIndexerFunction))]
-    public async Task Run(
+    [Function(nameof(WikiIndexerFunction))]
+    [ServiceBusOutput("wiki-page-refs", Connection = "ServiceBus")]
+    public async Task<WikiPageRefMessage[]> Run(
         [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
         CancellationToken ct)
     {
         if (timerInfo.IsPastDue)
             logger.LogWarning("[WIKI-INDEXER-FUNC] Timer is running late.");
 
-        logger.LogInformation("[WIKI-INDEXER-FUNC] Starting wiki sync...");
+        logger.LogInformation("[WIKI-INDEXER-FUNC] Enumerating WIKI pages...");
 
-        try
+        var refs = await queryService.QueryAllPageRefsAsync(ct);
+
+        if (refs.Count == 0)
         {
-            await indexer.RunSyncAsync(ct);
-            logger.LogInformation("[WIKI-INDEXER-FUNC] Sync completed successfully.");
+            logger.LogInformation("[WIKI-INDEXER-FUNC] No WIKI pages found — nothing enqueued.");
+            return [];
         }
-        catch (OperationCanceledException)
-        {
-            logger.LogWarning("[WIKI-INDEXER-FUNC] Sync cancelled (timeout or shutdown).");
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "[WIKI-INDEXER-FUNC] Sync failed.");
-            throw;
-        }
+
+        logger.LogInformation(
+            "[WIKI-INDEXER-FUNC] Enqueued {Count} page ref(s) on 'wiki-page-refs'.",
+            refs.Count);
+
+        return [.. refs];
     }
 }

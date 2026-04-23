@@ -42,6 +42,7 @@ resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
 
 // ── Queues ────────────────────────────────────────────────────────────────────
 // Pipeline indeksacji work itemów: workitem-ids → workitem-details → workitem-documents
+// Pipeline indeksacji WIKI:        wiki-page-refs → wiki-pages → wiki-documents
 // MaxDeliveryCount = 5, lockDuration = 5 min — wystarcza na embedding + DevOps API calls.
 // EnableDeadLettering on lock expiration ułatwia diagnostykę zakleszczonych wiadomości.
 
@@ -49,6 +50,9 @@ var queueNames = [
   'workitem-ids'
   'workitem-details'
   'workitem-documents'
+  'wiki-page-refs'
+  'wiki-pages'
+  'wiki-documents'
 ]
 
 resource queues 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = [for queueName in queueNames: {
