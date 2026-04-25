@@ -40,7 +40,7 @@ public class WorkItemDocumentBuilder : IWorkItemDocumentBuilder
         var body = BuildBodyText(wi);
         var fullText = string.IsNullOrWhiteSpace(body) ? header : $"{header}\n\n{body}";
 
-        var chunks = SplitIntoChunks(fullText, MaxChunkChars);
+        var chunks = fullText.SplitIntoChunks(MaxChunkChars, overlapFraction: 0.2);
         var documents = new List<WorkItemIndexDocument>(chunks.Count);
 
         var vectors = await _embedding.GetEmbeddingsAsync(chunks, ct);
@@ -164,32 +164,6 @@ public class WorkItemDocumentBuilder : IWorkItemDocumentBuilder
         }
 
         return sb.Length == 0 ? null : sb.ToString().TrimEnd();
-    }
-
-    private static List<string> SplitIntoChunks(string text, int maxChars)
-    {
-        if (text.Length <= maxChars) return [text];
-
-        var chunks = new List<string>();
-        var span = text.AsSpan();
-
-        while (span.Length > 0)
-        {
-            if (span.Length <= maxChars)
-            {
-                chunks.Add(span.ToString());
-                break;
-            }
-
-            var slice = span[..maxChars];
-            var lastSpace = slice.LastIndexOf(' ');
-            var cutAt = lastSpace > 0 ? lastSpace : maxChars;
-
-            chunks.Add(span[..cutAt].ToString());
-            span = span[cutAt..].TrimStart();
-        }
-
-        return chunks;
     }
 
     private static void AppendField(StringBuilder sb, string label, string? value)

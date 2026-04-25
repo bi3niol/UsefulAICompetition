@@ -92,7 +92,7 @@ public class WikiDocumentBuilder : IWikiDocumentBuilder
         var matches = headingRegex.Matches(content);
 
         if (matches.Count == 0)
-            return SplitByWordBoundary(content, maxChars);
+            return content.SplitIntoChunks(maxChars, overlapFraction: 0.2);
 
         var sections = new List<string>();
 
@@ -126,7 +126,7 @@ public class WikiDocumentBuilder : IWikiDocumentBuilder
                     current.Clear();
                 }
 
-                chunks.AddRange(SplitByWordBoundary(section, maxChars));
+                chunks.AddRange(section.SplitIntoChunks(maxChars, overlapFraction: 0.2));
                 continue;
             }
 
@@ -148,32 +148,6 @@ public class WikiDocumentBuilder : IWikiDocumentBuilder
             chunks.Add(current.ToString().Trim());
 
         return chunks.Count > 0 ? chunks : [content];
-    }
-
-    private static List<string> SplitByWordBoundary(string text, int maxChars)
-    {
-        if (text.Length <= maxChars) return [text];
-
-        var chunks = new List<string>();
-        var span = text.AsSpan();
-
-        while (span.Length > 0)
-        {
-            if (span.Length <= maxChars)
-            {
-                chunks.Add(span.ToString());
-                break;
-            }
-
-            var slice = span[..maxChars];
-            var lastSpace = slice.LastIndexOf(' ');
-            var cutAt = lastSpace > 0 ? lastSpace : maxChars;
-
-            chunks.Add(span[..cutAt].ToString());
-            span = span[cutAt..].TrimStart();
-        }
-
-        return chunks;
     }
 
     // ── ID + Title Helpers ───────────────────────────────────────────────────
