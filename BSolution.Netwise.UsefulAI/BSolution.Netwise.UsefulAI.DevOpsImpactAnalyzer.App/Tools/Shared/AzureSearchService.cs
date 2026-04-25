@@ -1,11 +1,11 @@
-﻿using Azure;
+using Azure;
+using Azure.Core;
+using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
 using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Collections.Concurrent;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
 
@@ -22,18 +22,28 @@ public interface IAzureSearchService
 
 public class AzureSearchService : IAzureSearchService
 {
-    private readonly string _endpoint;
-    private readonly AzureKeyCredential _credential;
+    // SearchClient jest thread-safe — reużywamy instancje per indexName zamiast tworzyć per wywołanie
+    private readonly ConcurrentDictionary<string, SearchClient> _clients = new();
+    private readonly Uri _endpoint;
+    private readonly SearchClientOptions _clientOptions;
+    private readonly TokenCredential? _tokenCredential;
+    private readonly AzureKeyCredential? _keyCredential;
 
-    // Nazwy pól w indeksach — muszą pasować do schematu indeksu
-    private const string VectorFieldWorkItems = "contentVector";
-    private const string VectorFieldWiki = "contentVector";
+    private const string VectorField = "contentVector";
     private const string SemanticConfig = "devops-semantic-config";
 
     public AzureSearchService(IConfiguration config)
     {
-        _endpoint = config["AzureSearch:Endpoint"]!;
-        _credential = new AzureKeyCredential(config["AzureSearch:ApiKey"]!);
+        _endpoint = new Uri(config["AzureSearch:Endpoint"]!);
+        _clientOptions = new SearchClientOptions();
+
+        // Keyless (DefaultAzureCredential) — wymaga roli "Search Index Data Reader" na MI.
+        // Fallback na ApiKey jeśli skonfigurowany (lokalne testy bez MI).
+        var apiKey = config["AzureSearch:ApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+            _tokenCredential = new DefaultAzureCredential();
+        else
+            _keyCredential = new AzureKeyCredential(apiKey);
     }
 
     public async Task<List<SearchResultItem>> HybridSearchAsync(
@@ -44,10 +54,10 @@ public class AzureSearchService : IAzureSearchService
         double minScore = 0.70,
         CancellationToken ct = default)
     {
-        var client = new SearchClient(
-            new Uri(_endpoint),
-            indexName,
-            _credential);
+        var client = _clients.GetOrAdd(indexName, name =>
+            _tokenCredential is not null
+                ? new SearchClient(_endpoint, name, _tokenCredential!, _clientOptions)
+                : new SearchClient(_endpoint, name, _keyCredential!, _clientOptions));
 
         var searchOptions = new SearchOptions
         {
@@ -64,7 +74,7 @@ public class AzureSearchService : IAzureSearchService
                 {
                     new VectorizedQuery(vector)
                     {
-                        Fields = { VectorFieldWorkItems },
+                        Fields = { VectorField },
                         KNearestNeighborsCount = top * 2  // pobieramy więcej, filtrujemy po score
                     }
                 }
@@ -78,14 +88,8 @@ public class AzureSearchService : IAzureSearchService
                 QueryAnswer = new QueryAnswer(QueryAnswerType.Extractive)
             },
 
-            // Pola które chcemy zwrócić (projekcja)
-            //Select =
-            //{
-            //    "id", "title", "type", "state", "description",
-            //    "acceptanceCriteria", "areaPath", "tags",
-            //    "path", "wikiId", "contentExcerpt",
-            //    "url", "createdDate", "changedDate"
-            //}
+            // Projekcja wyłączona — oba indeksy mają różne pola, Select spowodowałby błąd
+            // dla pól nieistniejących w danym indeksie
         };
 
         // Uruchamiamy hybrid search (keyword query pusta = tylko vector + semantic)

@@ -43,16 +43,13 @@ public class WorkItemDocumentBuilder : IWorkItemDocumentBuilder
         var chunks = SplitIntoChunks(fullText, MaxChunkChars);
         var documents = new List<WorkItemIndexDocument>(chunks.Count);
 
-        // Embeddingi liczone sekwencyjnie — przepustowość ogranicza maxConcurrentCalls
-        // konsumenta Service Bus (host.json), więc tutaj nie wprowadzamy własnego paralelizmu.
+        var vectors = await _embedding.GetEmbeddingsAsync(chunks, ct);
+
         for (var n = 0; n < chunks.Count; n++)
         {
             ct.ThrowIfCancellationRequested();
-
             var docId = n == 0 ? wi.Id.ToString() : $"{wi.Id}-{n}";
-            var vector = await _embedding.GetEmbeddingAsync(chunks[n], ct);
-
-            documents.Add(BuildDocument(wi, docId, isPrimaryChunk: n == 0, vector));
+            documents.Add(BuildDocument(wi, docId, isPrimaryChunk: n == 0, vectors[n]));
         }
 
         _logger.LogInformation("[WI-BUILD] WI#{Id} → {Count} document chunk(s).",

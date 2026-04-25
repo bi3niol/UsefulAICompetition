@@ -1,6 +1,4 @@
-using Azure.Identity;
 using Azure.Storage.Blobs;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -22,24 +20,15 @@ public interface IBlobMessageStore
 
 public class BlobMessageStore : IBlobMessageStore
 {
-    private const string ContainerName = "messages";
-
     private readonly BlobContainerClient _container;
     private readonly ILogger<BlobMessageStore> _logger;
 
     // Lazy guard — CreateIfNotExists jest idempotentne, ale nie potrzeba go przy każdym upload.
     private int _containerReady;
 
-    public BlobMessageStore(IConfiguration config, ILogger<BlobMessageStore> logger)
+    public BlobMessageStore(BlobContainerClient container, ILogger<BlobMessageStore> logger)
     {
-        var accountName = config["BlobStorage:AccountName"]
-            ?? throw new InvalidOperationException("BlobStorage:AccountName is not configured.");
-
-        var serviceClient = new BlobServiceClient(
-            new Uri($"https://{accountName}.blob.core.windows.net"),
-            new DefaultAzureCredential());
-
-        _container = serviceClient.GetBlobContainerClient(ContainerName);
+        _container = container;
         _logger = logger;
     }
 
@@ -57,7 +46,10 @@ public class BlobMessageStore : IBlobMessageStore
 
     public async Task<T> DownloadAsync<T>(string blobUri, CancellationToken ct = default)
     {
-        var blob = new BlobClient(new Uri(blobUri), new DefaultAzureCredential());
+        // Wyciągamy nazwę bloba z pełnego URI i pobieramy przez klienta kontenera —
+        // ta sama instancja credential co przy upload, bez tworzenia nowego BlobClient.
+        var blobName = new Uri(blobUri).AbsolutePath.TrimStart('/').Substring(_container.Name.Length + 1);
+        var blob = _container.GetBlobClient(blobName);
         var response = await blob.DownloadContentAsync(ct);
         var json = response.Value.Content.ToString();
 

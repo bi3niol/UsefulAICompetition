@@ -48,15 +48,15 @@ public class WikiDocumentBuilder : IWikiDocumentBuilder
 
         var documents = new List<WikiIndexDocument>(chunks.Count);
 
-        // Embeddingi liczone sekwencyjnie — paralelizm kontroluje host.json:
-        // extensions.serviceBus.maxConcurrentCalls.
+        var chunkTexts = chunks.Select(c => $"Page: {title}\n\n{c}").ToList();
+        var vectors = await _embedding.GetEmbeddingsAsync(chunkTexts, ct);
+
         for (var i = 0; i < chunks.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
 
             var docId = BuildDocId(wikiId, page.Path!, i);
-            var chunkText = $"Page: {title}\n\n{chunks[i]}";
-            var vector = await _embedding.GetEmbeddingAsync(chunkText, ct);
+            var chunkText = chunkTexts[i];
             var excerpt = chunkText.Length > 500 ? chunkText[..500] + "…" : chunkText;
 
             documents.Add(new WikiIndexDocument
@@ -68,7 +68,7 @@ public class WikiDocumentBuilder : IWikiDocumentBuilder
                 Content = chunkText,
                 ContentExcerpt = excerpt,
                 Url = page.RemoteUrl ?? string.Empty,
-                ContentVector = vector
+                ContentVector = vectors[i]
             });
         }
 
