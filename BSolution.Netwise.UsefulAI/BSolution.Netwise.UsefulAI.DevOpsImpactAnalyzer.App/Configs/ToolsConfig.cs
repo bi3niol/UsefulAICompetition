@@ -15,6 +15,7 @@ public static class ToolsConfig
         services.AddSingleton<IEmbeddingService, EmbeddingService>();
         services.AddSingleton<IAzureSearchService, AzureSearchService>();
         services.AddHttpClient<IAzureDevOpsService, AzureDevOpsService>();
+        services.AddSingleton<IBlobMessageStore, BlobMessageStore>();
 
         // Indexing — SearchIndexManager uruchamia się jako hosted service przy starcie
         services.AddHostedService<SearchIndexManager>();

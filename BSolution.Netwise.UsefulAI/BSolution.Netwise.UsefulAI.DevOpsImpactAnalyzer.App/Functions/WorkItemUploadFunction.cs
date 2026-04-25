@@ -6,27 +6,29 @@ using Microsoft.Extensions.Logging;
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 
 /// <summary>
-/// Etap 4/4 — wgrywa gotowe dokumenty (MergeOrUpload) do indeksu Azure AI Search.
+/// Etap 4/4 — pobiera z bloba pełną listę chunków <see cref="WorkItemIndexDocument"/>
+/// dla jednego work itemu i wgrywa je do indeksu Azure AI Search (MergeOrUpload, partie ≤ 500).
 /// </summary>
 public class WorkItemUploadFunction(
     IWorkItemSearchUploader uploader,
+    IBlobMessageStore blobStore,
     ILogger<WorkItemUploadFunction> logger)
 {
     [Function(nameof(WorkItemUploadFunction))]
     public async Task Run(
-        [ServiceBusTrigger("workitem-documents", Connection = "ServiceBus")] WorkItemIndexDocumentsMessage message,
+        [ServiceBusTrigger("workitem-documents", Connection = "ServiceBus")] BlobRefMessage message,
         CancellationToken ct)
     {
-        if (message.Documents.Count == 0)
+        var documents = await blobStore.DownloadAsync<List<WorkItemIndexDocument>>(message.BlobUri, ct);
+
+        if (documents.Count == 0)
         {
-            logger.LogInformation("[WI-UPLOAD] Empty document message — skipping.");
+            logger.LogInformation("[WI-UPLOAD] Blob contained no documents — skipping.");
             return;
         }
 
-        logger.LogInformation(
-            "[WI-UPLOAD] Uploading {Count} document(s)...",
-            message.Documents.Count);
+        await uploader.UploadAsync(documents, ct);
 
-        await uploader.UploadAsync(message.Documents, ct);
+        logger.LogInformation("[WI-UPLOAD] Uploaded {Count} document(s) to AI Search.", documents.Count);
     }
 }

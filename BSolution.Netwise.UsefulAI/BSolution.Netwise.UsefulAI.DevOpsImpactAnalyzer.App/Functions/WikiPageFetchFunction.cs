@@ -1,3 +1,4 @@
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing.Messages;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
 using Microsoft.Azure.Functions.Worker;
@@ -6,21 +7,23 @@ using Microsoft.Extensions.Logging;
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 
 /// <summary>
-/// Etap 2/4 — pobiera treść pojedynczej strony WIKI z DevOps API i publikuje
-/// <see cref="WikiPageContentMessage"/> na kolejce <c>wiki-pages</c>.
+/// Etap 2/4 — pobiera treść pojedynczej strony WIKI z DevOps API, zapisuje
+/// <see cref="WikiPageContentMessage"/> jako blob i publikuje
+/// <see cref="BlobRefMessage"/> na kolejce <c>wiki-pages</c> (Claim-Check Pattern).
 ///
-/// W odróżnieniu od work itemów, DevOps WIKI API nie ma batchowego endpointu na
-/// strony, więc nie paczkujemy ID — każda strona to osobna wiadomość.
-/// Throttling wywołań DevOps API kontroluje
+/// Zwraca <c>null</c> dla stron bez treści (katalogi) i przy błędzie pobierania
+/// — zapobiega retry storm i dead-lettering na zepsutych stronach.
+/// Throttling DevOps API kontroluje
 /// <c>host.json → extensions.serviceBus.maxConcurrentCalls</c>.
 /// </summary>
 public class WikiPageFetchFunction(
     IAzureDevOpsService devOps,
+    IBlobMessageStore blobStore,
     ILogger<WikiPageFetchFunction> logger)
 {
     [Function(nameof(WikiPageFetchFunction))]
     [ServiceBusOutput("wiki-pages", Connection = "ServiceBus")]
-    public async Task<WikiPageContentMessage?> Run(
+    public async Task<BlobRefMessage?> Run(
         [ServiceBusTrigger("wiki-page-refs", Connection = "ServiceBus")] WikiPageRefMessage message,
         CancellationToken ct)
     {
@@ -39,12 +42,17 @@ public class WikiPageFetchFunction(
                 return null;
             }
 
-            return new WikiPageContentMessage
+            var payload = new WikiPageContentMessage
             {
                 WikiId = message.WikiId,
                 WikiName = message.WikiName,
                 Page = page
             };
+
+            var blobPath = BlobPaths.WikiPage(message.WikiId, message.Path);
+            var uri = await blobStore.UploadAsync(blobPath, payload, ct);
+
+            return new BlobRefMessage { BlobUri = uri };
         }
         catch (Exception ex)
         {
@@ -52,8 +60,8 @@ public class WikiPageFetchFunction(
                 "[WIKI-FETCH] Failed to fetch page '{Path}' from wiki '{Wiki}' — dropping.",
                 message.Path, message.WikiName ?? message.WikiId);
 
-            // Świadomie zwracamy null zamiast rzucać — pojedyncza popsuta strona nie
-            // powinna wracać przez retry/dead-letter i blokować całej synchronizacji.
+            // Świadomie zwracamy null — pojedyncza popsuta strona nie powinna
+            // blokować całej synchronizacji przez retry/dead-letter.
             return null;
         }
     }

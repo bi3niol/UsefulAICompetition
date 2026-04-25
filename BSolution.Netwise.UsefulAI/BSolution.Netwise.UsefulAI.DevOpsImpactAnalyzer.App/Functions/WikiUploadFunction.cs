@@ -6,28 +6,30 @@ using Microsoft.Extensions.Logging;
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 
 /// <summary>
-/// Etap 4/4 — wgrywa gotowe dokumenty (MergeOrUpload) do indeksu Azure AI Search
-/// <c>wiki-pages-index</c>.
+/// Etap 4/4 — pobiera z bloba pełną listę chunków <see cref="WikiIndexDocument"/>
+/// dla jednej strony WIKI i wgrywa je do indeksu Azure AI Search
+/// <c>wiki-pages-index</c> (upsert, partie ≤ 500).
 /// </summary>
 public class WikiUploadFunction(
     IWikiSearchUploader uploader,
+    IBlobMessageStore blobStore,
     ILogger<WikiUploadFunction> logger)
 {
     [Function(nameof(WikiUploadFunction))]
     public async Task Run(
-        [ServiceBusTrigger("wiki-documents", Connection = "ServiceBus")] WikiIndexDocumentsMessage message,
+        [ServiceBusTrigger("wiki-documents", Connection = "ServiceBus")] BlobRefMessage message,
         CancellationToken ct)
     {
-        if (message.Documents.Count == 0)
+        var documents = await blobStore.DownloadAsync<List<WikiIndexDocument>>(message.BlobUri, ct);
+
+        if (documents.Count == 0)
         {
-            logger.LogInformation("[WIKI-UPLOAD] Empty document message — skipping.");
+            logger.LogInformation("[WIKI-UPLOAD] Blob contained no documents — skipping.");
             return;
         }
 
-        logger.LogInformation(
-            "[WIKI-UPLOAD] Uploading {Count} document(s)...",
-            message.Documents.Count);
+        await uploader.UploadAsync(documents, ct);
 
-        await uploader.UploadAsync(message.Documents, ct);
+        logger.LogInformation("[WIKI-UPLOAD] Uploaded {Count} document(s) to AI Search.", documents.Count);
     }
 }

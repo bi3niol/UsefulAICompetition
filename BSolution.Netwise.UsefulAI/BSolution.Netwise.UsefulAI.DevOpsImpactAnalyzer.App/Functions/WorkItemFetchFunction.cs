@@ -1,3 +1,4 @@
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing.Messages;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
 using Microsoft.Azure.Functions.Worker;
@@ -6,12 +7,14 @@ using Microsoft.Extensions.Logging;
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 
 /// <summary>
-/// Etap 2/4 — pobiera szczegóły wszystkich work itemów z paczki + komentarze
-/// (osobny endpoint w DevOps API) i publikuje pojedyncze wiadomości
-/// <see cref="WorkItemDetailMessage"/> na kolejce <c>workitem-details</c>.
+/// Etap 2/4 — pobiera szczegóły wszystkich work itemów z paczki + komentarze,
+/// zapisuje każdy <see cref="WorkItemDetailMessage"/> jako blob w Blob Storage
+/// i publikuje cienką wiadomość <see cref="BlobRefMessage"/> na kolejce
+/// <c>workitem-details</c> (Claim-Check Pattern).
 /// </summary>
 public class WorkItemFetchFunction(
     IAzureDevOpsService devOps,
+    IBlobMessageStore blobStore,
     ILogger<WorkItemFetchFunction> logger)
 {
     /// <summary>Maksymalna liczba równoczesnych wywołań endpointu komentarzy (limit DevOps API).</summary>
@@ -19,7 +22,7 @@ public class WorkItemFetchFunction(
 
     [Function(nameof(WorkItemFetchFunction))]
     [ServiceBusOutput("workitem-details", Connection = "ServiceBus")]
-    public async Task<WorkItemDetailMessage[]> Run(
+    public async Task<BlobRefMessage[]> Run(
         [ServiceBusTrigger("workitem-ids", Connection = "ServiceBus")] WorkItemIdsBatchMessage message,
         CancellationToken ct)
     {
@@ -31,11 +34,11 @@ public class WorkItemFetchFunction(
         var workItems = await devOps.GetWorkItemsBatchAsync(message.Ids, ct);
 
         // Krok 2: dociągnięcie komentarzy (osobny endpoint per WI) z throttlingiem
-        var semaphore = new SemaphoreSlim(MaxParallelCommentRequests, MaxParallelCommentRequests);
+        var commentSemaphore = new SemaphoreSlim(MaxParallelCommentRequests, MaxParallelCommentRequests);
 
         await Task.WhenAll(workItems.Select(async wi =>
         {
-            await semaphore.WaitAsync(ct);
+            await commentSemaphore.WaitAsync(ct);
             try
             {
                 wi.Comments = await devOps.GetWorkItemCommentsAsync(wi.Id, ct);
@@ -49,16 +52,22 @@ public class WorkItemFetchFunction(
             }
             finally
             {
-                semaphore.Release();
+                commentSemaphore.Release();
             }
         }));
 
-        logger.LogInformation(
-            "[WI-FETCH] Enqueued {Count} work item(s) on 'workitem-details'.",
-            workItems.Count);
+        // Krok 3: upload każdego WI do Blob Storage, na SB wysyłamy tylko URI (Claim-Check)
+        var refs = await Task.WhenAll(workItems.Select(async wi =>
+        {
+            var blobPath = BlobPaths.WorkItemDetail(wi.Id);
+            var uri = await blobStore.UploadAsync(blobPath, new WorkItemDetailMessage { WorkItem = wi }, ct);
+            return new BlobRefMessage { BlobUri = uri };
+        }));
 
-        return workItems
-            .Select(wi => new WorkItemDetailMessage { WorkItem = wi })
-            .ToArray();
+        logger.LogInformation(
+            "[WI-FETCH] Uploaded {Count} blob(s), enqueued on 'workitem-details'.",
+            refs.Length);
+
+        return refs;
     }
 }

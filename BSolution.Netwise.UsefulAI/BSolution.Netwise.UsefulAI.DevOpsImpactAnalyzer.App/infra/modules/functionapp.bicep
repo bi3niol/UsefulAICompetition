@@ -189,6 +189,11 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     // in the work item indexing pipeline (WorkItemIndexer/Fetch/BuildDocuments/Upload).
     ServiceBus__fullyQualifiedNamespace: '${serviceBusNamespaceName}.servicebus.windows.net'
 
+    // ── Blob Storage dla Claim-Check Pattern (wiadomości SB > 256 KB) ──
+    // Function App ma Storage Blob Data Owner na tym storage account (przypisane powyżej).
+    // BlobMessageStore używa DefaultAzureCredential + tego account name.
+    BlobStorage__AccountName: storage.name
+
     // ── Application secrets sourced from Key Vault ──
     Foundry__Endpoint:                  '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/Foundry--Endpoint)'
     AzureSearch__Endpoint:              '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureSearch--Endpoint)'
