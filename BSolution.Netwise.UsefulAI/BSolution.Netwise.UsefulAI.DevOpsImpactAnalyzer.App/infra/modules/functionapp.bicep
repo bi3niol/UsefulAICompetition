@@ -189,10 +189,13 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     // in the work item indexing pipeline (WorkItemIndexer/Fetch/BuildDocuments/Upload).
     ServiceBus__fullyQualifiedNamespace: '${serviceBusNamespaceName}.servicebus.windows.net'
 
-    // ── Blob Storage dla Claim-Check Pattern (wiadomości SB > 256 KB) ──
-    // Function App ma Storage Blob Data Owner na tym storage account (przypisane powyżej).
-    // BlobMessageStore używa DefaultAzureCredential + tego account name.
-    BlobStorage__AccountName: storage.name
+    // ── Blob / Tables ──
+    // BlobMessageStore (Claim-Check) ORAZ SettingsStore (key-value config table)
+    // korzystają z tego samego storage account co Functions runtime
+    // (AzureWebJobsStorage). MI ma już przypisane role "Storage Blob Data Owner"
+    // i "Storage Table Data Contributor" (patrz wyżej).
+    // Nazwa konta jest pobierana z `AzureWebJobsStorage__accountName` — nie
+    // potrzebujemy oddzielnego app settingu.
 
     // ── Application secrets sourced from Key Vault ──
     Foundry__Endpoint:                  '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/Foundry--Endpoint)'

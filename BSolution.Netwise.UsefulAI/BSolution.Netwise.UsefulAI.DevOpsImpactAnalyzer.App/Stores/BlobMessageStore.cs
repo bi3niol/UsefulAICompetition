@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
+namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
 
 /// <summary>
 /// Serwis do przechowywania dużych payloadów wiadomości w Blob Storage (Claim-Check Pattern).

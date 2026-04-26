@@ -1,3 +1,4 @@
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

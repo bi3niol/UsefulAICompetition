@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App;
+namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
 
 public record WorkItemEvent(
     int Id,

@@ -1,5 +1,7 @@
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing.Messages;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -14,30 +16,29 @@ namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Functions;
 /// </summary>
 public class WikiIndexerFunction(
     IWikiPageQueryService queryService,
+    ISettingsStore settings,
     ILogger<WikiIndexerFunction> logger)
 {
-    [Function(nameof(WikiIndexerFunction))]
+    //[Function(nameof(WikiIndexerFunction))]
     [ServiceBusOutput("wiki-page-refs", Connection = "ServiceBus")]
     public async Task<WikiPageRefMessage[]> Run(
         [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
+        // Connection pominięty → domyślnie AzureWebJobsStorage (ten sam storage co runtime).
+        [TableInput(SettingKeys.TableName, SettingKeys.Partition, SettingKeys.WikiLastSync)]
+            SettingEntity? lastSyncSetting,
         CancellationToken ct)
     {
-        if (timerInfo.IsPastDue)
-            logger.LogWarning("[WIKI-INDEXER-FUNC] Timer is running late.");
+        var lastRun = lastSyncSetting?.As<DateTimeOffset?>();
+        var runStartedUtc = DateTimeOffset.UtcNow;
 
-        logger.LogInformation("[WIKI-INDEXER-FUNC] Enumerating WIKI pages...");
+        logger.LogInformation( "[WIKI-INDEXER-FUNC] Enumerating WIKI pages (last sync: {LastSync})...",
+            lastRun is null ? "never" : lastRun.Value.ToString("O"));
 
         var refs = await queryService.QueryAllPageRefsAsync(ct);
 
-        if (refs.Count == 0)
-        {
-            logger.LogInformation("[WIKI-INDEXER-FUNC] No WIKI pages found — nothing enqueued.");
-            return [];
-        }
+        logger.LogInformation("[WIKI-INDEXER-FUNC] Enqueued {Count} page ref(s) on 'wiki-page-refs'.", refs.Count);
 
-        logger.LogInformation(
-            "[WIKI-INDEXER-FUNC] Enqueued {Count} page ref(s) on 'wiki-page-refs'.",
-            refs.Count);
+        await settings.UpsertAsync(SettingKeys.WikiLastSync, runStartedUtc, ct);
 
         return [.. refs];
     }

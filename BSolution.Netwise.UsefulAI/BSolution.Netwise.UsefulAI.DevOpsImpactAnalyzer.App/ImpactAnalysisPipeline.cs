@@ -1,5 +1,6 @@
 ﻿using Azure.AI.Projects;
 using Azure.Identity;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 using Microsoft.Agents.AI;
