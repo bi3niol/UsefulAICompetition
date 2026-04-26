@@ -51,6 +51,7 @@ public static class ToolsConfig
 
         // Research tools
         services.AddSingleton<SearchWorkItemsTool>();
+        services.AddSingleton<KeywordSearchWorkItemsTool>();
         services.AddSingleton<SearchWikiTool>();
         services.AddSingleton<GetWorkItemDetailsTool>();
         services.AddSingleton<GetWikiPageDetailsTool>();

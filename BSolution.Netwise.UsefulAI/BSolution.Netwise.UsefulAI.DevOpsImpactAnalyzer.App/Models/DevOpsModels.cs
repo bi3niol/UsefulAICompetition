@@ -60,3 +60,26 @@ public class WikiInfo
     public string? Name { get; set; }
     public string? RemoteUrl { get; set; }
 }
+
+/// <summary>
+/// Wynik z DevOps Work Item Search API (Lucene/BM25 keyword search).
+/// Endpoint: POST https://almsearch.dev.azure.com/{org}/{project}/_apis/search/workitemsearchresults
+/// </summary>
+public class WorkItemSearchHit
+{
+    public int Id { get; set; }
+    public string? Title { get; set; }
+    public string? Type { get; set; }
+    public string? State { get; set; }
+    public string? AssignedTo { get; set; }
+    public string? AreaPath { get; set; }
+    public string? Tags { get; set; }
+
+    /// <summary>
+    /// Snippety z dopasowaniami per pole (klucz = nazwa pola, wartość = fragmenty z tagami
+    /// &lt;highlighthit&gt;...&lt;/highlighthit&gt; wokół znalezionych słów).
+    /// </summary>
+    public Dictionary<string, List<string>> Highlights { get; set; } = [];
+
+    public string? Url { get; set; }
+}

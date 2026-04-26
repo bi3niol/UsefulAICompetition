@@ -9,11 +9,11 @@ namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
 {
     [AgentTool(Description = """
-        Retrieves FULL details of a specific work item by its ID.
+        Retrieves FULL details of a specific work item by its ID, including comments/discussion.
         Use this for the top 3-5 most similar work items found in search 
-        to get complete description, acceptance criteria and existing relations.
+        to get complete description, acceptance criteria, existing relations and team discussion.
         Returns: title, type, state, full description, acceptance criteria,
-                 area path, tags, priority, assignee and linked items.
+                 area path, tags, priority, assignee, linked items and comments.
         """)]
     public async Task<string> GetWorkItemDetailsAsync(
         [Description("The numeric ID of the work item (e.g. 234)")]
@@ -32,6 +32,15 @@ public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
                 error = $"Work item #{workItemId} not found",
                 workItemId
             });
+        }
+        List<WorkItemComment> comments;
+        try
+        {
+            comments = await devOpsService.GetWorkItemCommentsAsync(workItemId);
+        }
+        catch (Exception)
+        {
+            comments = [];
         }
 
         return JsonSerializer.Serialize(new
@@ -54,6 +63,12 @@ public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
                 relationType = r.RelationType,
                 relatedItemId = r.RelatedId,
                 url = r.Url
+            }),
+            comments = comments.Select(c => new
+            {
+                author = c.CreatedBy,
+                date = c.CreatedDate,
+                text = c.Text
             }),
             url = item.Url
         });

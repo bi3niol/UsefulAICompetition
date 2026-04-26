@@ -29,6 +29,21 @@ public interface IAzureDevOpsService
 
     /// <summary>Zwraca pełną, spłaszczoną listę ścieżek stron wiki (bez treści).</summary>
     Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Wyszukuje work itemy używając natywnego DevOps Work Item Search API
+    /// (Lucene query syntax — fuzzy, wildcards, field-scoped, boolean ops, BM25).
+    /// </summary>
+    /// <param name="searchText">Query w składni Lucene (np. "authentication~" lub "title:login AND state:Active").</param>
+    /// <param name="filters">Filtry per pole DevOps. Klucze: System.WorkItemType, System.State, System.AreaPath, System.AssignedTo, System.Tags.</param>
+    /// <param name="top">Maks. liczba wyników (1-1000).</param>
+    /// <param name="skip">Offset paginacji.</param>
+    Task<List<WorkItemSearchHit>> SearchWorkItemsByKeywordsAsync(
+        string searchText,
+        IReadOnlyDictionary<string, string[]>? filters = null,
+        int top = 50,
+        int skip = 0,
+        CancellationToken ct = default);
 }
 
 public class AzureDevOpsService : IAzureDevOpsService
@@ -37,6 +52,13 @@ public class AzureDevOpsService : IAzureDevOpsService
     private readonly string _organization;
     private readonly string _project;
     private readonly string _apiVersion = "7.1";
+
+    /// <summary>
+    /// Search API (extension) jest hostowany pod osobnym subdomenem almsearch.dev.azure.com,
+    /// więc nie możemy użyć HttpClient.BaseAddress — wysyłamy z absolutnym URI.
+    /// PAT z domyślnego nagłówka Authorization działa też na tym hoście.
+    /// </summary>
+    private readonly Uri _almSearchBaseUri;
 
     public AzureDevOpsService(IConfiguration config, HttpClient http)
     {
@@ -52,6 +74,8 @@ public class AzureDevOpsService : IAzureDevOpsService
             new AuthenticationHeaderValue("Basic", token);
         _http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
+
+        _almSearchBaseUri = new Uri($"https://almsearch.dev.azure.com/{_organization}/");
     }
 
     // ── Work Items ──────────────────────────────────────────────────────────
@@ -160,6 +184,97 @@ public class AzureDevOpsService : IAzureDevOpsService
         }
 
         return result;
+    }
+
+    // ── Work Item Search (Lucene/BM25, almsearch.dev.azure.com) ─────────────
+
+    public async Task<List<WorkItemSearchHit>> SearchWorkItemsByKeywordsAsync(
+        string searchText,
+        IReadOnlyDictionary<string, string[]>? filters = null,
+        int top = 50,
+        int skip = 0,
+        CancellationToken ct = default)
+    {
+        // Endpoint extension Search jest na osobnym hoście — używamy absolutnego URI.
+        var url = new Uri(
+            _almSearchBaseUri,
+            $"{_project}/_apis/search/workitemsearchresults?api-version={_apiVersion}");
+
+        // DevOps Search wymaga zawsze filtra System.TeamProject — bez niego API zwraca 400.
+        var effectiveFilters = filters is null
+            ? new Dictionary<string, string[]>()
+            : new Dictionary<string, string[]>(filters);
+
+        if (!effectiveFilters.ContainsKey("System.TeamProject"))
+            effectiveFilters["System.TeamProject"] = [_project];
+
+        var body = new Dictionary<string, object?>
+        {
+            ["searchText"] = searchText,
+            ["$top"] = Math.Clamp(top, 1, 1000),
+            ["$skip"] = Math.Max(0, skip),
+            ["includeFacets"] = false,
+            ["filters"] = effectiveFilters
+        };
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+        };
+
+        using var response = await _http.SendAsync(req, ct);
+
+        // Search extension może być wyłączone w organizacji on-prem — traktujemy jako brak wyników.
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return json?["results"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(MapWorkItemSearchHit)
+            .ToList() ?? [];
+    }
+
+    private WorkItemSearchHit MapWorkItemSearchHit(JsonObject result)
+    {
+        var fields = result["fields"]?.AsObject();
+
+        // Highlights to obiekt: { "system.title": ["...<highlighthit>auth</highlighthit>..."], ... }
+        var highlights = new Dictionary<string, List<string>>();
+        if (result["hits"]?.AsArray() is { } hits)
+        {
+            foreach (var hit in hits.OfType<JsonObject>())
+            {
+                var fieldRef = hit["fieldReferenceName"]?.ToString();
+                var highlightArr = hit["highlights"]?.AsArray();
+                if (fieldRef is null || highlightArr is null) continue;
+
+                highlights[fieldRef] = highlightArr
+                    .Select(h => h?.ToString() ?? string.Empty)
+                    .Where(s => s.Length > 0)
+                    .ToList();
+            }
+        }
+
+        var id = int.TryParse(fields?["system.id"]?.ToString(), out var parsedId) ? parsedId : 0;
+
+        return new WorkItemSearchHit
+        {
+            Id = id,
+            Title = fields?["system.title"]?.ToString(),
+            Type = fields?["system.workitemtype"]?.ToString(),
+            State = fields?["system.state"]?.ToString(),
+            AssignedTo = fields?["system.assignedto"]?.ToString(),
+            AreaPath = fields?["system.areapath"]?.ToString(),
+            Tags = fields?["system.tags"]?.ToString(),
+            Highlights = highlights,
+            Url = id > 0
+                ? $"https://dev.azure.com/{_organization}/{_project}/_workitems/edit/{id}"
+                : null
+        };
     }
 
     // ── WIKI ────────────────────────────────────────────────────────────────

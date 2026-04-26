@@ -20,7 +20,9 @@ internal class AgentPrompts
        - Technical match ("how it might be implemented")
     3. Run SearchWiki() with at least 2-3 queries
     4. For top 3 most similar work items — call GetWorkItemDetails()
-       to get the full description, acceptance criteria and existing relations.
+       to get the full description, acceptance criteria, existing relations
+       and comments/discussion — comments often reveal context, decisions
+       and constraints not captured in the description.
     5. For top 2-3 most relevant WIKI hits — call GetWikiPageDetails()
        with the wikiId and path returned by SearchWiki to retrieve the FULL
        Markdown content. The search excerpt is only ~500 chars and is NOT
