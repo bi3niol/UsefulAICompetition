@@ -3,6 +3,7 @@ using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Embeddings;
+using System.ClientModel;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
 
@@ -77,10 +78,12 @@ public class EmbeddingService : IEmbeddingService
     // ~16 chunków × max 8 000 tokenów ≈ 128 000 tokenów/request — bezpieczny margines dla TPM
     private const int EmbeddingBatchSize = 16;
     private const int MaxRetryAttempts = 5;
+    private static readonly Random _jitter = Random.Shared;
 
     /// <summary>
     /// Wykonuje <paramref name="action"/> z retry na 429 (TooManyRequests).
-    /// Respektuje Retry-After header; fallback: exponential backoff (2s, 4s, 8s...) max 120s.
+    /// Respektuje Retry-After header; fallback: exponential backoff z jitterem (±20%) max 120s.
+    /// Jitter zapobiega thundering herd gdy wiele instancji dostaje 429 jednocześnie.
     /// </summary>
     private static async Task<T> WithRetryAsync<T>(Func<Task<T>> action, CancellationToken ct)
     {
@@ -92,7 +95,7 @@ public class EmbeddingService : IEmbeddingService
             {
                 return await action();
             }
-            catch (RequestFailedException ex) when (ex.Status == 429 && attempt < MaxRetryAttempts)
+            catch (ClientResultException ex) when (ex.Status == 429 && attempt < MaxRetryAttempts)
             {
                 var retryAfter = ex.GetRawResponse()?.Headers
                     .TryGetValue("Retry-After", out var value) == true
@@ -100,9 +103,13 @@ public class EmbeddingService : IEmbeddingService
                         ? TimeSpan.FromSeconds(seconds)
                         : delay;
 
-                var wait = retryAfter > TimeSpan.FromSeconds(120)
+                var baseWait = retryAfter > TimeSpan.FromSeconds(120)
                     ? TimeSpan.FromSeconds(120)
                     : retryAfter;
+
+                // ±20% jitter — rozbija thundering herd gdy wiele instancji dostaje 429 razem
+                var jitterFactor = 0.8 + _jitter.NextDouble() * 0.4;
+                var wait = TimeSpan.FromMilliseconds(baseWait.TotalMilliseconds * jitterFactor);
 
                 await Task.Delay(wait, ct);
 
