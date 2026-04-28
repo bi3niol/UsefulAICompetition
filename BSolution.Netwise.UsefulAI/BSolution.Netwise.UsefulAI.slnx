@@ -3,4 +3,8 @@
     <File Path=".editorconfig" />
   </Folder>
   <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.csproj" />
+  <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension.esproj">
+    <Build />
+    <Deploy />
+  </Project>
 </Solution>

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0.5277448">
+  <PropertyGroup>
+    <StartupCommand>npm run dev</StartupCommand>
+    <BuildCommand>npm run build</BuildCommand>
+    <ProductionBuildCommand>npm run build</ProductionBuildCommand>
+    <ShouldRunBuildScript>true</ShouldRunBuildScript>
+    <ShouldRunNpmInstall>true</ShouldRunNpmInstall>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="manifest.json" />
+    <None Include="package.json" />
+    <None Include="README.md" />
+    <None Include="src\adapters\browser\BrowserWorkItemHost.ts" />
+    <None Include="src\adapters\browser\content-script.tsx" />
+    <None Include="src\adapters\browser\options.html" />
+    <None Include="src\adapters\browser\options.tsx" />
+    <None Include="src\adapters\browser\storage.ts" />
+    <None Include="src\core\components\AnalysisReport.tsx" />
+    <None Include="src\core\components\ErrorState.tsx" />
+    <None Include="src\core\components\ImpactPanel.tsx" />
+    <None Include="src\core\components\LoadingState.tsx" />
+    <None Include="src\core\hooks\useImpactAnalysis.ts" />
+    <None Include="src\core\hooks\useWorkItemContext.ts" />
+    <None Include="src\core\markdown\renderMarkdown.ts" />
+    <None Include="src\core\ports\IWorkItemHost.ts" />
+    <None Include="src\core\services\ImpactAnalysisClient.ts" />
+    <None Include="src\core\types.ts" />
+    <None Include="src\styles\panel.scss" />
+    <None Include="tsconfig.json" />
+    <None Include="tsconfig.node.json" />
+    <None Include="vite.config.ts" />
+  </ItemGroup>
+</Project>

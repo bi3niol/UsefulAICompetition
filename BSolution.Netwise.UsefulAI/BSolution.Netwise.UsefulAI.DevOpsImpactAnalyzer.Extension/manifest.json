@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "DevOps Impact Analyzer",
+  "version": "0.0.1",
+  "description": "Shows AI-powered impact analysis for the currently open Azure DevOps work item.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://dev.azure.com/*",
+    "https://*.visualstudio.com/*"
+  ],
+  "options_page": "src/adapters/browser/options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://dev.azure.com/*",
+        "https://*.visualstudio.com/*"
+      ],
+      "js": ["src/adapters/browser/content-script.tsx"],
+      "run_at": "document_idle"
+    }
+  ]
+}
