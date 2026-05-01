@@ -19,7 +19,9 @@ builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var endpoint = new Uri(config["Foundry:Endpoint"]!);
-    return new AIProjectClient(endpoint, new DefaultAzureCredential());
+    var options = new AIProjectClientOptions();
+    options.NetworkTimeout = TimeSpan.FromMinutes(5);
+    return new AIProjectClient(endpoint, new DefaultAzureCredential(), options);
 });
 
 builder.Services.AddImpactAnalyzerTools();

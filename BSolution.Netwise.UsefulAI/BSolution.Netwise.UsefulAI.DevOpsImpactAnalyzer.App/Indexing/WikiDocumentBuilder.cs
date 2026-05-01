@@ -24,8 +24,7 @@ public class WikiDocumentBuilder : IWikiDocumentBuilder
     private readonly IEmbeddingService _embedding;
     private readonly ILogger<WikiDocumentBuilder> _logger;
 
-    // ~1500 tokenów (średnio 4 znaki/token)
-    private const int MaxChunkChars = 6_000;
+    private const int MaxChunkChars = 4_500;
 
     public WikiDocumentBuilder(
         IEmbeddingService embedding,

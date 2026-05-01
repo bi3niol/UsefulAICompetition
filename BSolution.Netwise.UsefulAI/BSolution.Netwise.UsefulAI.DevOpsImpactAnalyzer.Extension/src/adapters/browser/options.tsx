@@ -53,23 +53,6 @@ const OptionsPage: React.FC = () => {
           </div>
         </Card>
 
-        <div style={{ height: 16 }} />
-
-        <Card titleProps={{ text: "Azure DevOps (optional, for richer context)" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 12 }}>
-            <TextField
-              label="Personal Access Token (Work Items: Read)"
-              value={settings.devopsPat ?? ""}
-              onChange={(_e, v) => update("devopsPat", v)}
-              inputType="password"
-            />
-            <small style={{ color: "#605e5c" }}>
-              Without a PAT the panel still works — only the work item ID will be sent to the
-              backend; field values stay on the server side.
-            </small>
-          </div>
-        </Card>
-
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
           <Button text="Save" primary onClick={onSave} />
           {saved && (

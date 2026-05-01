@@ -21,8 +21,7 @@ public class WorkItemDocumentBuilder : IWorkItemDocumentBuilder
     private readonly IEmbeddingService _embedding;
     private readonly ILogger<WorkItemDocumentBuilder> _logger;
 
-    // ~2000 tokenów (średnio 4 znaki/token)
-    private const int MaxChunkChars = 8_000;
+    private const int MaxChunkChars = 6_000;
 
     public WorkItemDocumentBuilder(
         IEmbeddingService embedding,

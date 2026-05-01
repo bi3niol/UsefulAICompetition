@@ -1,14 +1,10 @@
 import { BackendConfig } from "../../core/types";
 
-export interface ExtensionSettings extends BackendConfig {
-  /** Personal Access Token for Azure DevOps REST API (used to read work item fields). */
-  devopsPat?: string;
-}
+export interface ExtensionSettings extends BackendConfig {}
 
 const DEFAULTS: ExtensionSettings = {
   functionUrl: "",
-  functionKey: "",
-  devopsPat: ""
+  functionKey: ""
 };
 
 export async function getSettings(): Promise<ExtensionSettings> {

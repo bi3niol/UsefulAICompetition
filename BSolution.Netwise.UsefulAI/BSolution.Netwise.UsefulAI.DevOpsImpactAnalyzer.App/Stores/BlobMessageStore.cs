@@ -20,15 +20,18 @@ public interface IBlobMessageStore
 
 public class BlobMessageStore : IBlobMessageStore
 {
+    /// <summary>Nazwa kontenera dla wszystkich payloadów Claim-Check Pattern.</summary>
+    public const string ContainerName = "messages";
+
     private readonly BlobContainerClient _container;
     private readonly ILogger<BlobMessageStore> _logger;
 
     // Lazy guard — CreateIfNotExists jest idempotentne, ale nie potrzeba go przy każdym upload.
     private int _containerReady;
 
-    public BlobMessageStore(BlobContainerClient container, ILogger<BlobMessageStore> logger)
+    public BlobMessageStore(BlobServiceClient blobServiceClient, ILogger<BlobMessageStore> logger)
     {
-        _container = container;
+        _container = blobServiceClient.GetBlobContainerClient(ContainerName);
         _logger = logger;
     }
 
@@ -91,6 +94,10 @@ public static class BlobPaths
     /// <summary>Blob dla listy wszystkich chunków <c>WikiIndexDocument</c> jednej strony na kolejce <c>wiki-documents</c>.</summary>
     public static string WikiDocument(string wikiId, string path) =>
         $"wiki-documents/{Today}/{Slug(wikiId)}-{Slug(path)}_{Uid}.json";
+
+    /// <summary>Deterministyczna nazwa bloba raportu Impact Analysis (markdown) wewnątrz kontenera <c>reports</c>.</summary>
+    public static string Report(int workItemId) =>
+        $"{workItemId}.md";
 
     // Sanityzacja ścieżek WIKI: / → -, tylko [a-zA-Z0-9-], max 50 znaków.
     private static string Slug(string s) =>

@@ -24,22 +24,28 @@ public static class ToolsConfig
         services.AddHttpClient<IAzureDevOpsService, AzureDevOpsService>()
             .AddStandardResilienceHandler();
 
-        // Blob Storage — kontener "messages" dla Claim-Check Pattern.
-        // Korzysta z TEGO SAMEGO storage account co Functions runtime
-        // (AzureWebJobsStorage), keyless via DefaultAzureCredential.
-        // Wymagana rola dla MI: "Storage Blob Data Owner" (już przypisana w bicep).
+        // Blob Storage — wspólny BlobServiceClient (keyless via DefaultAzureCredential)
+        // dla całej aplikacji. Korzysta z TEGO SAMEGO storage account co Functions runtime
+        // (AzureWebJobsStorage). Wymagana rola dla MI: "Storage Blob Data Owner"
+        // (już przypisana w bicep).
+        // Każdy store sam pobiera swój kontener — nie wstrzykujemy BlobContainerClient
+        // globalnie, bo różne usługi używają różnych kontenerów (messages, reports, ...).
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
+            var connectionString = config["AzureWebJobsStorage"];
+            if (connectionString == "UseDevelopmentStorage=true")
+                return new BlobServiceClient(connectionString);
+
             var accountName = config["AzureWebJobsStorage:accountName"]
                 ?? throw new InvalidOperationException(
                     "AzureWebJobsStorage:accountName (AzureWebJobsStorage__accountName) is not configured.");
-            var serviceClient = new BlobServiceClient(
+            return new BlobServiceClient(
                 new Uri($"https://{accountName}.blob.core.windows.net"),
                 new DefaultAzureCredential());
-            return serviceClient.GetBlobContainerClient("messages");
         });
         services.AddSingleton<IBlobMessageStore, BlobMessageStore>();
+        services.AddSingleton<IReportStore, ReportStore>();
 
         // Azure Tables — generyczna tabela "Settings" (key-value) trzymająca
         // konfigurację runtime'ową (m.in. znaczniki ostatniej synchronizacji
@@ -49,13 +55,21 @@ public static class ToolsConfig
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
-            // AzureWebJobsStorage__accountName  →  config["AzureWebJobsStorage:accountName"]
-            var accountName = config["AzureWebJobsStorage:accountName"]
-                ?? throw new InvalidOperationException(
-                    "AzureWebJobsStorage:accountName (AzureWebJobsStorage__accountName) is not configured.");
-            var serviceClient = new TableServiceClient(
-                new Uri($"https://{accountName}.table.core.windows.net"),
-                new DefaultAzureCredential());
+            var connectionString = config["AzureWebJobsStorage"];
+            TableServiceClient serviceClient;
+            if (connectionString == "UseDevelopmentStorage=true")
+            {
+                serviceClient = new TableServiceClient(connectionString);
+            }
+            else
+            {
+                var accountName = config["AzureWebJobsStorage:accountName"]
+                    ?? throw new InvalidOperationException(
+                        "AzureWebJobsStorage:accountName (AzureWebJobsStorage__accountName) is not configured.");
+                serviceClient = new TableServiceClient(
+                    new Uri($"https://{accountName}.table.core.windows.net"),
+                    new DefaultAzureCredential());
+            }
             var tableClient = serviceClient.GetTableClient(SettingKeys.TableName);
             tableClient.CreateIfNotExists();
             return tableClient;

@@ -1,6 +1,7 @@
 ﻿using Azure.AI.Projects;
 using Azure.Identity;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+using System.ClientModel;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 using Microsoft.Agents.AI;
@@ -18,6 +19,8 @@ public class ImpactAnalysisPipeline
     private readonly ILogger<ImpactAnalysisPipeline> _logger;
 
     private const int MaxEditorRetries = 2;
+    private const int MaxRateLimitRetries = 6;
+    private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(5);
 
     public ImpactAnalysisPipeline(
         AIProjectClient projectClient,
@@ -79,7 +82,9 @@ public class ImpactAnalysisPipeline
             Perform comprehensive research. Return structured JSON findings.
         """;
 
-        var result = await _researcher.RunAsync<ResearchFindings>(prompt);
+        var result = await WithRateLimitRetryAsync(
+            () => _researcher.RunAsync<ResearchFindings>(prompt),
+            "RESEARCHER");
         return result.Result;
     }
 
@@ -141,7 +146,9 @@ public class ImpactAnalysisPipeline
             Produce a complete markdown report.
         """;
 
-        return (await _writer.RunAsync<string>(prompt)).Result;
+        return (await WithRateLimitRetryAsync(
+            () => _writer.RunAsync<string>(prompt),
+            "WRITER")).Result;
     }
 
     private async Task<EditorDecision> RunEditorAsync(
@@ -165,7 +172,9 @@ public class ImpactAnalysisPipeline
             Return JSON: { "isApproved": bool, "feedback": "string or null" }
         """;
 
-        var result = await _editor.RunAsync<EditorDecision>(prompt);
+        var result = await WithRateLimitRetryAsync(
+            () => _editor.RunAsync<EditorDecision>(prompt),
+            "EDITOR");
         return result.Result;
     }
 
@@ -181,6 +190,28 @@ public class ImpactAnalysisPipeline
             {report}
         """;
 
-        await _sender.RunAsync(prompt);
+        await WithRateLimitRetryAsync(
+            async () => { await _sender.RunAsync(prompt); return 0; },
+            "SENDER");
+    }
+
+    private async Task<T> WithRateLimitRetryAsync<T>(
+        Func<Task<T>> action, string agentName)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await action();
+            }
+            catch (ClientResultException ex) when (ex.Status == 429 && attempt <= MaxRateLimitRetries)
+            {
+                var delay = InitialRetryDelay * Math.Pow(2, attempt - 1);
+                _logger.LogWarning(
+                    "[{Agent}] Rate limited (429). Retry {Attempt}/{Max} after {Delay}s...",
+                    agentName, attempt, MaxRateLimitRetries, delay.TotalSeconds);
+                await Task.Delay(delay);
+            }
+        }
     }
 }

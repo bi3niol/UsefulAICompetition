@@ -9,6 +9,13 @@
     "https://*.visualstudio.com/*"
   ],
   "options_page": "src/adapters/browser/options.html",
+  "action": {
+    "default_title": "Toggle Impact Analysis panel"
+  },
+  "background": {
+    "service_worker": "src/adapters/browser/background.ts",
+    "type": "module"
+  },
   "content_scripts": [
     {
       "matches": [

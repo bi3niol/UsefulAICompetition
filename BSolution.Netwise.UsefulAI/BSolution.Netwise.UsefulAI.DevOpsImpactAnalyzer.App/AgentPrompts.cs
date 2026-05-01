@@ -29,6 +29,9 @@ internal class AgentPrompts
        enough to confirm an architectural conflict, ADR or technical constraint.
        Skip this step only if the excerpt already clearly answers the question.
 
+    LANGUAGE RULE: Write search queries in the same language as the work item title
+    to improve keyword matching. JSON field names stay in English.
+
     Return ONLY structured JSON:
     {
       "analyzedItem": { "id": int, "title": string },
@@ -80,6 +83,10 @@ internal class AgentPrompts
     ## 🔍 Research Coverage
     (which queries were used — transparency for the team)
     
+    LANGUAGE RULE: Write the ENTIRE report in the same language as the work item title.
+    If the title is in Polish — write in Polish. If in English — write in English.
+    Section headers (emoji + text) must also be translated to match.
+
     Use clear language. Be specific. Link everything.
     If Editor provides feedback — address ALL points.
 """;
@@ -96,6 +103,7 @@ internal class AgentPrompts
     ✅ Conflicts have clear explanation WHY they conflict
     ✅ Recommendations are concrete (not vague)
     ✅ No hallucinated items (only items from research findings)
+    ✅ Report language matches the language of the work item title
     ✅ Report is readable by a developer unfamiliar with the new item
     
     Return ONLY this JSON — no other text:

@@ -21,6 +21,7 @@ public class HttpTestFunction
     public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequest req)
     {
         _logger.LogInformation("C# HTTP trigger function processed a request.");
-        return new OkObjectResult(await _searchWikiTool.SearchWikiAsync("integracje z systemem zewnętrznym"));
+        return new OkObjectResult("integracje z systemem zewnętrznym");
+        //return new OkObjectResult(await _searchWikiTool.SearchWikiAsync("integracje z systemem zewnętrznym"));
     }
 }

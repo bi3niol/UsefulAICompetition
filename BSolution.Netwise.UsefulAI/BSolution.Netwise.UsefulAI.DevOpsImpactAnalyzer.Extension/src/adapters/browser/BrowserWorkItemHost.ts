@@ -4,7 +4,6 @@ import {
   WorkItemChangedHandler
 } from "../../core/ports/IWorkItemHost";
 import { WorkItemContext } from "../../core/types";
-import { getSettings } from "./storage";
 
 /**
  * Browser-extension host. Detects the work item ID from the URL and (optionally)
@@ -21,6 +20,7 @@ export class BrowserWorkItemHost implements IWorkItemHost {
 
   private mount: HTMLElement | null = null;
   private currentId: number | null = null;
+  private navListeners: Array<() => void> = [];
 
   async ready(): Promise<void> {
     if (this.mount) return;
@@ -47,39 +47,7 @@ export class BrowserWorkItemHost implements IWorkItemHost {
     const id = this.parseWorkItemIdFromUrl(location.href);
     this.currentId = id;
     if (id == null) return null;
-
-    // Best-effort: enrich with fields via REST. If no PAT is configured, return id-only.
-    try {
-      const settings = await getSettings();
-      if (!settings.devopsPat) {
-        return { id, url: location.href };
-      }
-      const orgProject = this.parseOrgProjectFromUrl(location.href);
-      if (!orgProject) return { id, url: location.href };
-
-      const { org, project } = orgProject;
-      const url =
-        `https://dev.azure.com/${encodeURIComponent(org)}/${encodeURIComponent(project)}` +
-        `/_apis/wit/workitems/${id}?api-version=7.1`;
-      const res = await fetch(url, {
-        headers: { Authorization: "Basic " + btoa(":" + settings.devopsPat) }
-      });
-      if (!res.ok) return { id, url: location.href };
-      const wi = await res.json();
-      const f = wi.fields ?? {};
-      return {
-        id,
-        title: f["System.Title"],
-        type: f["System.WorkItemType"],
-        description: f["System.Description"],
-        acceptanceCriteria: f["Microsoft.VSTS.Common.AcceptanceCriteria"],
-        areaPath: f["System.AreaPath"],
-        tags: f["System.Tags"],
-        url: wi.url ?? location.href
-      };
-    } catch {
-      return { id, url: location.href };
-    }
+    return { id, url: location.href };
   }
 
   onWorkItemChanged(handler: WorkItemChangedHandler): () => void {
@@ -112,7 +80,9 @@ export class BrowserWorkItemHost implements IWorkItemHost {
     }
 
     window.addEventListener("impact:locationchange", fire);
-    return () => window.removeEventListener("impact:locationchange", fire);
+    const off = () => window.removeEventListener("impact:locationchange", fire);
+    this.navListeners.push(off);
+    return off;
   }
 
   async getAuthToken(): Promise<string | null> {
@@ -124,22 +94,23 @@ export class BrowserWorkItemHost implements IWorkItemHost {
     return this.mount;
   }
 
+  /** Detach listeners and remove the mount point from the DOM. */
+  dispose(): void {
+    for (const off of this.navListeners) off();
+    this.navListeners = [];
+    if (this.mount && this.mount.parentNode) {
+      this.mount.parentNode.removeChild(this.mount);
+    }
+    this.mount = null;
+    this.currentId = null;
+  }
+
   private parseWorkItemIdFromUrl(url: string): number | null {
     // Matches both /_workitems/edit/123 and /_workitems/?id=123
     const editMatch = url.match(/_workitems\/edit\/(\d+)/);
     if (editMatch) return Number(editMatch[1]);
     const queryMatch = url.match(/[?&]id=(\d+)/);
     if (queryMatch) return Number(queryMatch[1]);
-    return null;
-  }
-
-  private parseOrgProjectFromUrl(url: string): { org: string; project: string } | null {
-    // dev.azure.com/{org}/{project}/...
-    const m = url.match(/dev\.azure\.com\/([^/]+)\/([^/]+)\//);
-    if (m) return { org: decodeURIComponent(m[1]), project: decodeURIComponent(m[2]) };
-    // {org}.visualstudio.com/{project}/...
-    const m2 = url.match(/https?:\/\/([^.]+)\.visualstudio\.com\/([^/]+)\//);
-    if (m2) return { org: m2[1], project: decodeURIComponent(m2[2]) };
     return null;
   }
 }

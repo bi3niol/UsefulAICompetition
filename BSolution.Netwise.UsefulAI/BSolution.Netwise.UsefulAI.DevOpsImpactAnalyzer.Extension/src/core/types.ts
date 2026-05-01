@@ -10,11 +10,23 @@ export interface WorkItemContext {
 }
 
 export interface AnalysisResult {
-  /** Full markdown report returned by AnalyzeWorkItemFunction. */
+  /** Full markdown report returned by the backend. */
   markdown: string;
 }
 
-export type AnalysisStatus = "idle" | "loading" | "success" | "error";
+/**
+ *  - checking   — GET to backend in flight (looking for an existing report)
+ *  - missing    — backend returned 404 (no report yet, waiting for user action)
+ *  - generating — POST .../generate in flight (multi-agent pipeline running)
+ *  - ready      — report available (either fetched or freshly generated)
+ *  - error      — last operation failed
+ */
+export type AnalysisStatus =
+  | "checking"
+  | "missing"
+  | "generating"
+  | "ready"
+  | "error";
 
 export interface AnalysisState {
   status: AnalysisStatus;

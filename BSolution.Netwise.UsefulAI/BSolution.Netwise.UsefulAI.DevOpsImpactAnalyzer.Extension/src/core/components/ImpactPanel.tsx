@@ -23,6 +23,10 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({ host, client, onClose 
   const { workItem, loading: ctxLoading, error: ctxError } = useWorkItemContext(host);
   const analysis = useImpactAnalysis(client, workItem?.id ?? null);
 
+  const isBusy = analysis.status === "checking" || analysis.status === "generating";
+  const hasReport = analysis.status === "ready" && !!analysis.result;
+  const generateLabel = hasReport ? "Re-generate" : "Generate";
+
   return (
     <Surface background={SurfaceBackground.neutral}>
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -31,36 +35,31 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({ host, client, onClose 
           titleSize={TitleSize.Medium}
           description={
             workItem
-              ? `#${workItem.id}${workItem.title ? " · " + workItem.title : ""}`
+              ? `Work Item #${workItem.id}`
               : "No work item in context"
           }
-          commandBarItems={[
-            {
-              id: "rerun",
-              text: "Re-run",
-              iconProps: { iconName: "Refresh" },
-              disabled: workItem == null || analysis.status === "loading",
-              onActivate: () => analysis.run()
-            },
-            ...(onClose
-              ? [
-                  {
-                    id: "close",
-                    text: "Close",
-                    iconProps: { iconName: "Cancel" },
-                    onActivate: () => onClose()
-                  }
-                ]
-              : [])
-          ]}
         />
+        <div style={{ padding: "4px 16px 0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <Button
+            text={generateLabel}
+            iconProps={{ iconName: hasReport ? "Refresh" : "Play" }}
+            disabled={workItem == null || isBusy}
+            primary={!hasReport}
+            onClick={() => analysis.generate()}
+          />
+          {onClose && (
+            <Button
+              text="Close"
+              iconProps={{ iconName: "Cancel" }}
+              onClick={() => onClose()}
+            />
+          )}
+        </div>
 
         <div style={{ flex: 1, overflow: "auto" }}>
           {ctxLoading && <LoadingState label="Reading work item context…" />}
 
-          {!ctxLoading && ctxError && (
-            <ErrorState message={ctxError} />
-          )}
+          {!ctxLoading && ctxError && <ErrorState message={ctxError} />}
 
           {!ctxLoading && !ctxError && !workItem && (
             <div style={{ padding: 12 }}>
@@ -72,17 +71,34 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({ host, client, onClose 
 
           {!ctxLoading && workItem && (
             <Card className="impact-analysis-card" contentProps={{ contentPadding: false }}>
-              {analysis.status === "loading" && <LoadingState />}
+              {analysis.status === "checking" && (
+                <LoadingState label="Looking for an existing report…" />
+              )}
+
+              {analysis.status === "generating" && (
+                <LoadingState label="Generating report — this may take a minute…" />
+              )}
+
               {analysis.status === "error" && (
-                <ErrorState message={analysis.error ?? "Unknown error"} onRetry={analysis.run} />
+                <ErrorState
+                  message={analysis.error ?? "Unknown error"}
+                  onRetry={analysis.generate}
+                />
               )}
-              {analysis.status === "success" && analysis.result && (
-                <AnalysisReport markdown={analysis.result.markdown} />
-              )}
-              {analysis.status === "idle" && (
-                <div style={{ padding: 16 }}>
-                  <Button text="Analyze" primary onClick={() => analysis.run()} />
+
+              {analysis.status === "missing" && (
+                <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                  <MessageCard severity={MessageCardSeverity.Info}>
+                    No impact analysis report has been generated for this work item yet.
+                  </MessageCard>
+                  <div>
+                    <Button text="Generate" primary onClick={() => analysis.generate()} />
+                  </div>
                 </div>
+              )}
+
+              {analysis.status === "ready" && analysis.result && (
+                <AnalysisReport markdown={analysis.result.markdown} />
               )}
             </Card>
           )}
