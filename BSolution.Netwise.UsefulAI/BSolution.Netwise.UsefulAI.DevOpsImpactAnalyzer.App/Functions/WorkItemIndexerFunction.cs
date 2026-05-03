@@ -25,13 +25,10 @@ public class WorkItemIndexerFunction(
     [ServiceBusOutput("workitem-ids", Connection = "ServiceBus")]
     public async Task<WorkItemIdsBatchMessage[]> Run(
         [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
-        // Connection pominięty → domyślnie AzureWebJobsStorage (ten sam storage co runtime).
-        [TableInput(SettingKeys.TableName, SettingKeys.Partition, SettingKeys.WorkItemsLastSync)]
-            SettingEntity? lastSyncSetting,
         CancellationToken ct)
     {
         // Stan odczytany z tabeli konfiguracyjnej — null oznacza pierwsze uruchomienie.
-        var lastRun = lastSyncSetting?.As<DateTimeOffset?>();
+        var lastRun = await settings.GetAsync<DateTimeOffset?>(SettingKeys.WorkItemsLastSync, ct);
         var isFirstRun = lastRun is null;
 
         // Snapshot momentu STARTU — zapisujemy go po sukcesie. Dzięki temu kolejny

@@ -19,16 +19,13 @@ public class WikiIndexerFunction(
     ISettingsStore settings,
     ILogger<WikiIndexerFunction> logger)
 {
-    //[Function(nameof(WikiIndexerFunction))]
+    [Function(nameof(WikiIndexerFunction))]
     [ServiceBusOutput("wiki-page-refs", Connection = "ServiceBus")]
     public async Task<WikiPageRefMessage[]> Run(
-        [TimerTrigger("0 0 */4 * * *", RunOnStartup = true)]
-        // Connection pominięty → domyślnie AzureWebJobsStorage (ten sam storage co runtime).
-        [TableInput(SettingKeys.TableName, SettingKeys.Partition, SettingKeys.WikiLastSync)]
-            SettingEntity? lastSyncSetting,
+        [TimerTrigger("0 0 */4 * * *", RunOnStartup = true)] TimerInfo timerInfo,
         CancellationToken ct)
     {
-        var lastRun = lastSyncSetting?.As<DateTimeOffset?>();
+        var lastRun = await settings.GetAsync<DateTimeOffset?>(SettingKeys.WikiLastSync, ct);
         var runStartedUtc = DateTimeOffset.UtcNow;
 
         logger.LogInformation("[WIKI-INDEXER-FUNC] Enumerating WIKI pages (last sync: {LastSync}, mode: {Mode})...",

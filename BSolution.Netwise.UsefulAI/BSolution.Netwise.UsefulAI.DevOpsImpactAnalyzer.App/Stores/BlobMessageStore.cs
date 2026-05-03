@@ -49,9 +49,10 @@ public class BlobMessageStore : IBlobMessageStore
 
     public async Task<T> DownloadAsync<T>(string blobUri, CancellationToken ct = default)
     {
-        // Wyciągamy nazwę bloba z pełnego URI i pobieramy przez klienta kontenera —
+        // Wyciągamy nazwę bloba z pełnego URI względem URI kontenera —
         // ta sama instancja credential co przy upload, bez tworzenia nowego BlobClient.
-        var blobName = new Uri(blobUri).AbsolutePath.TrimStart('/').Substring(_container.Name.Length + 1);
+        // Podejście przez _container.Uri działa zarówno dla Azurite jak i produkcji.
+        var blobName = blobUri.Substring(_container.Uri.ToString().Length).TrimStart('/');
         var blob = _container.GetBlobClient(blobName);
         var response = await blob.DownloadContentAsync(ct);
         var json = response.Value.Content.ToString();
