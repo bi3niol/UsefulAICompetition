@@ -10,7 +10,13 @@ namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
 /// </summary>
 public interface IWikiPageQueryService
 {
-    Task<List<WikiPageRefMessage>> QueryAllPageRefsAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Zwraca referencje do stron wiki do zaindeksowania.
+    /// Gdy <paramref name="since"/> jest podane, zwraca tylko strony zmodyfikowane po tej dacie
+    /// (filtrowanie przez Git Commits API). Gdy filtrowanie inkrementalne nie jest możliwe
+    /// (brak repozytorium Git pod wiki), wykonuje pełną synchronizację jako fallback.
+    /// </summary>
+    Task<List<WikiPageRefMessage>> QueryPageRefsAsync(DateTimeOffset? since = null, CancellationToken ct = default);
 }
 
 public class WikiPageQueryService : IWikiPageQueryService
@@ -24,7 +30,8 @@ public class WikiPageQueryService : IWikiPageQueryService
         _logger = logger;
     }
 
-    public async Task<List<WikiPageRefMessage>> QueryAllPageRefsAsync(CancellationToken ct = default)
+    public async Task<List<WikiPageRefMessage>> QueryPageRefsAsync(
+        DateTimeOffset? since = null, CancellationToken ct = default)
     {
         var wikis = await _devOps.GetWikiListAsync(ct);
         _logger.LogInformation("[WIKI-QUERY] Found {Count} wiki(s) in project.", wikis.Count);
@@ -37,10 +44,41 @@ public class WikiPageQueryService : IWikiPageQueryService
 
             try
             {
-                // recursionLevel=full → wszystkie ścieżki w jednym żądaniu
-                var paths = await _devOps.GetWikiPagePathsAsync(wiki.Id, ct);
-                _logger.LogInformation("[WIKI-QUERY] Wiki '{Name}' → {Count} page path(s).",
-                    wiki.Name, paths.Count);
+                List<string> paths;
+
+                if (since.HasValue)
+                {
+                    var changedPaths = await _devOps.GetChangedWikiPagePathsAsync(wiki, since.Value, ct);
+
+                    if (changedPaths is null)
+                    {
+                        // null = brak repositoryId lub brak uprawnień Repos (Read) — fallback do pełnej synchronizacji
+                        _logger.LogWarning(
+                            "[WIKI-QUERY] Wiki '{Name}' — incremental sync unavailable (missing repositoryId or insufficient PAT permissions), falling back to full sync.",
+                            wiki.Name);
+                        paths = await _devOps.GetWikiPagePathsAsync(wiki.Id, ct);
+                    }
+                    else if (changedPaths.Count == 0)
+                    {
+                        _logger.LogInformation(
+                            "[WIKI-QUERY] Wiki '{Name}' — no changes since {Since}.", wiki.Name, since.Value);
+                        continue;
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "[WIKI-QUERY] Wiki '{Name}' → {Count} changed page(s) since {Since}.",
+                            wiki.Name, changedPaths.Count, since.Value);
+                        paths = changedPaths;
+                    }
+                }
+                else
+                {
+                    // Brak watermarku — pełna synchronizacja
+                    paths = await _devOps.GetWikiPagePathsAsync(wiki.Id, ct);
+                    _logger.LogInformation("[WIKI-QUERY] Wiki '{Name}' → {Count} page path(s) (full sync).",
+                        wiki.Name, paths.Count);
+                }
 
                 refs.AddRange(paths.Select(path => new WikiPageRefMessage
                 {

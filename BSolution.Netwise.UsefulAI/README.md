@@ -68,7 +68,7 @@ POST /api/AnalyzeWorkItem/{workItemId}/generate
           ↓
    [RESEARCHER]    — searches DevOps items + WIKI (has search tools)
           ↓ ResearchFindings (JSON)
-   [WRITER]        — produces structured markdown report (no tools)
+   [WRITER]        — produces structured markdown report (has GetCurrentDate tool)
           ↓ draft report
    [EDITOR]        — reviews report quality, approves or sends feedback (no tools)
           ↓ approved report (max 2 retries back to Writer)
@@ -111,7 +111,7 @@ Stages 1 (`workitem-ids`, `wiki-page-refs`) carry small primitive messages and d
 [WorkItemIndexerFunction]   Timer  0 */15 * * * *  (every 15 min, RunOnStartup)
           ↓ first run  → IWorkItemQueryService.QueryAllIdsAsync()
           ↓ next runs  → IWorkItemQueryService.QueryChangedIdsSinceAsync(ScheduleStatus.Last)
-          ↓ batches of 200 IDs → enqueue WorkItemIdsBatchMessage  [plain, no Claim-Check]
+          batches of 100 IDs
    Service Bus queue: workitem-ids
           ↓
 [WorkItemFetchFunction]     ServiceBusTrigger("workitem-ids")
@@ -122,7 +122,7 @@ Stages 1 (`workitem-ids`, `wiki-page-refs`) carry small primitive messages and d
           ↓
 [WorkItemBuildDocumentsFunction]  ServiceBusTrigger("workitem-details")
           ↓ download WorkItemDetailMessage blob
-          ↓ IWorkItemDocumentBuilder.BuildAsync → chunk (max 8 000 chars) + embed all chunks
+          chunk (max 6 000 chars)
           ↓ upload blob: workitem-documents/{date}/{wiId}_{guid8}.json  [List<WorkItemIndexDocument>]
           ↓ emit BlobRefMessage?  (null → no message sent)
    Service Bus queue: workitem-documents
@@ -136,9 +136,11 @@ Stages 1 (`workitem-ids`, `wiki-page-refs`) carry small primitive messages and d
 ### WIKI indexing pipeline (analogous)
 
 ```
-[WikiIndexerFunction]       Timer  0 0 0 * * *  (daily, RunOnStartup)
-          ↓ IWikiPageQueryService.QueryAllPageRefsAsync()
-          ↓ enumerate wikis + recursive page paths (recursionLevel=full)
+[WikiIndexerFunction]       Timer  0 0 */4 * * *  (every 4h, RunOnStartup)
+          ↓ first run  → IWikiPageQueryService.QueryPageRefsAsync(since: null) — full sync
+          ↓ next runs  → IWikiPageQueryService.QueryPageRefsAsync(since: lastSync) — incremental
+          ↓   incremental: Git Commits API (searchCriteria.fromDate) → changed .md paths only
+          ↓   fallback to full sync when repositoryId missing or PAT lacks Repos (Read)
           ↓ enqueue WikiPageRefMessage  [plain, no Claim-Check]
    Service Bus queue: wiki-page-refs
           ↓
@@ -150,7 +152,7 @@ Stages 1 (`workitem-ids`, `wiki-page-refs`) carry small primitive messages and d
           ↓
 [WikiBuildDocumentsFunction]  ServiceBusTrigger("wiki-pages")
           ↓ download WikiPageContentMessage blob
-          ↓ IWikiDocumentBuilder.BuildAsync → chunk Markdown (H1/H2, max 6 000 chars) + embed
+          chunk Markdown (H1/H2, max 4 500 chars)
           ↓ upload blob: wiki-documents/{date}/{wikiId}-{pathSlug}_{guid8}.json  [List<WikiIndexDocument>]
           ↓ emit BlobRefMessage?
    Service Bus queue: wiki-documents
@@ -267,6 +269,8 @@ BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/
 │   │   ├── GetWorkItemDetailsTool.cs         ✅
 │   │   ├── GetWikiPageDetailsTool.cs         ✅
 │   │   └── ResearchTools.cs                  ✅
+│   ├── Writer/
+│   │   └── WriterTools.cs                    ✅ GetCurrentDate tool for report timestamps
 │   ├── Sender/
 │   │   ├── PostCommentTool.cs                ✅
 │   │   └── SenderTools.cs                    ✅
@@ -301,6 +305,35 @@ BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/
         ├── servicebus.bicep                  ✅ Namespace + 6 queues + RBAC
         └── ai.bicep                          ✅ AI Foundry + OpenAI + AI Search
 ```
+
+### Browser Extension (companion project)
+
+`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/` — a **Manifest V3 Chrome/Edge
+browser extension** (React + TypeScript, built with Vite + CRXJS) that injects a side panel
+into the Azure DevOps work item page and calls the Function App backend to display the impact
+analysis report.
+
+```
+BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/
+├── src/
+│   ├── core/                          ← React + TS, framework-agnostic
+│   │   ├── ports/IWorkItemHost.ts     ← port interface for any host
+│   │   ├── services/                  ← ImpactAnalysisClient (fetch backend)
+│   │   ├── hooks/                     ← useWorkItemContext, useImpactAnalysis
+│   │   ├── components/                ← ImpactPanel, AnalysisReport, LoadingState, ErrorState
+│   │   └── markdown/                  ← markdown-it + DOMPurify
+│   └── adapters/
+│       └── browser/                   ← chrome.* + DOM injection
+│           ├── BrowserWorkItemHost.ts ← implements IWorkItemHost
+│           ├── content-script.tsx     ← injects panel into dev.azure.com
+│           ├── options.tsx            ← settings page (URL, key, PAT)
+│           ├── background.ts          ← service worker
+│           └── storage.ts             ← chrome.storage.sync wrapper
+├── tsconfig.json
+└── package.json
+```
+
+See `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/README.md` for build & usage details.
 
 ---
 
@@ -364,7 +397,7 @@ record WorkItemEvent(int Id, string Type, string Title, string Description,
 //                   AreaPath, IterationPath, Tags, Priority, AssignedTo,
 //                   CreatedDate, ChangedDate, Relations, Url
 // WikiPageDetail  — Id, Path, Content, RemoteUrl, GitItemPath, ETag
-// WikiInfo        — Id, Name, RemoteUrl
+// WikiInfo        — Id, Name, RemoteUrl, RepositoryId, MappedPath
 
 // Service Bus messages
 // BlobRefMessage                  { string BlobUri }        ← on SB for stages 2-4 (Claim-Check)
@@ -392,7 +425,8 @@ record WorkItemEvent(int Id, string Type, string Title, string Description,
 2. **Agent system prompts** (`AgentPrompts.cs`) — defined for all 4 agents
 3. **ResearchTools** — `SearchWorkItemsTool` (semantic/hybrid), `KeywordSearchWorkItemsTool` (native BM25/Lucene), `SearchWikiTool`, `GetWorkItemDetailsTool`, `GetWikiPageDetailsTool`
 4. **SenderTools** — `PostCommentTool`
-5. **HTTP entry points** — `GenerateWorkItemReportFunction` (`POST /api/AnalyzeWorkItem/{workItemId}/generate`) runs the pipeline synchronously, persists the markdown report via `IReportStore` and returns it; `GetWorkItemReportFunction` (`GET /api/AnalyzeWorkItem/{workItemId}`) returns the previously stored report from Blob Storage (404 if missing)
+4a. **WriterTools** — `GetCurrentDate` (provides current date for report timestamps)
+5. **HTTP entry points**
 6. **HttpTestFunction** — ad-hoc endpoint for manually invoking tools during dev
 
 ### Shared Services
@@ -406,7 +440,7 @@ record WorkItemEvent(int Id, string Type, string Title, string Description,
 
 ### Indexing — Service Bus + Claim-Check pipelines
 13. **Work Item pipeline** — 3 services + 4 functions; stages 2–4 use Claim-Check via `IBlobMessageStore`
-14. **WIKI pipeline** — 3 services + 4 functions; identical Claim-Check pattern
+14. **WIKI pipeline** — 3 services + 4 functions; identical Claim-Check pattern; **incremental sync** via Git Commits API (`searchCriteria.fromDate`) — only modified/new `.md` files are re-indexed each run; falls back to full sync on first run or when Git repo metadata is unavailable
 15. **Blob payloads are unbounded** — eliminates 256 KB SB Standard limit; handles large Epics, multi-MB WIKI pages
 16. **SearchIndexManager** (`IHostedService`) — creates `work-items-index` + `wiki-pages-index` on startup (HNSW cosine, 3072 dims, `devops-semantic-config`)
 17. **`host.json`** — `maxConcurrentCalls = 4`, `prefetchCount = 8`
@@ -454,9 +488,9 @@ record WorkItemEvent(int Id, string Type, string Title, string Description,
 - Naming: `I{Domain}QueryService`, `I{Domain}DocumentBuilder`, `I{Domain}SearchUploader`.
 
 ### Sizing
-- Chunking: max **8 000 chars** for WI (~2 000 tokens), max **6 000 chars** for WIKI (~1 500 tokens).
+max **6 000 chars** for WI (~1 500 tokens), max **4 500 chars** for WIKI (~1 125 tokens)
 - AI Search uploads: batch at max **500 documents** per `IndexDocumentsAsync` call.
-- WI ID batches: **200 IDs per `WorkItemIdsBatchMessage`** (DevOps batch GET limit).
+**100 IDs per `WorkItemIdsBatchMessage`** (DevOps batch GET limit)
 
 ### Auth & secrets
 - **Keyless everywhere** — `DefaultAzureCredential` for OpenAI / AI Search / Service Bus / Blob / Tables / Foundry.

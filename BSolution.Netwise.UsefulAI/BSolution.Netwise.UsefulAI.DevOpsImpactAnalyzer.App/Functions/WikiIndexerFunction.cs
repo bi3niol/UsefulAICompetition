@@ -22,7 +22,7 @@ public class WikiIndexerFunction(
     //[Function(nameof(WikiIndexerFunction))]
     [ServiceBusOutput("wiki-page-refs", Connection = "ServiceBus")]
     public async Task<WikiPageRefMessage[]> Run(
-        [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
+        [TimerTrigger("0 0 */4 * * *", RunOnStartup = true)]
         // Connection pominięty → domyślnie AzureWebJobsStorage (ten sam storage co runtime).
         [TableInput(SettingKeys.TableName, SettingKeys.Partition, SettingKeys.WikiLastSync)]
             SettingEntity? lastSyncSetting,
@@ -31,10 +31,11 @@ public class WikiIndexerFunction(
         var lastRun = lastSyncSetting?.As<DateTimeOffset?>();
         var runStartedUtc = DateTimeOffset.UtcNow;
 
-        logger.LogInformation( "[WIKI-INDEXER-FUNC] Enumerating WIKI pages (last sync: {LastSync})...",
-            lastRun is null ? "never" : lastRun.Value.ToString("O"));
+        logger.LogInformation("[WIKI-INDEXER-FUNC] Enumerating WIKI pages (last sync: {LastSync}, mode: {Mode})...",
+            lastRun is null ? "never" : lastRun.Value.ToString("O"),
+            lastRun is null ? "full" : "incremental");
 
-        var refs = await queryService.QueryAllPageRefsAsync(ct);
+        var refs = await queryService.QueryPageRefsAsync(lastRun, ct);
 
         logger.LogInformation("[WIKI-INDEXER-FUNC] Enqueued {Count} page ref(s) on 'wiki-page-refs'.", refs.Count);
 

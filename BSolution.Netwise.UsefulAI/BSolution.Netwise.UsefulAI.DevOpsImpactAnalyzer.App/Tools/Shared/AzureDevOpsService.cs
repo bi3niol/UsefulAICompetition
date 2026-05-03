@@ -31,6 +31,14 @@ public interface IAzureDevOpsService
     Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default);
 
     /// <summary>
+    /// Zwraca ścieżki stron wiki zmodyfikowanych lub dodanych po <paramref name="since"/>.
+    /// Używa Git Commits API (searchCriteria.fromDate) na repozytorium podpierającym wiki.
+    /// Zwraca <c>null</c> jako sygnał do fallbacku na pełną synchronizację — może wystąpić gdy
+    /// <c>repositoryId</c> nie zostało zwrócone przez API lub PAT nie ma uprawnień Repos (Read).
+    /// </summary>
+    Task<List<string>?> GetChangedWikiPagePathsAsync(WikiInfo wiki, DateTimeOffset since, CancellationToken ct = default);
+
+    /// <summary>
     /// Wyszukuje work itemy używając natywnego DevOps Work Item Search API
     /// (Lucene query syntax — fuzzy, wildcards, field-scoped, boolean ops, BM25).
     /// </summary>
@@ -323,10 +331,91 @@ public class AzureDevOpsService : IAzureDevOpsService
             {
                 Id = w["id"]?.ToString(),
                 Name = w["name"]?.ToString(),
-                RemoteUrl = w["remoteUrl"]?.ToString()
+                RemoteUrl = w["remoteUrl"]?.ToString(),
+                RepositoryId = w["repositoryId"]?.ToString(),
+                MappedPath = w["mappedPath"]?.ToString()
             })
             .Where(w => w.Id is not null)
             .ToList() ?? [];
+    }
+
+    public async Task<List<string>?> GetChangedWikiPagePathsAsync(
+        WikiInfo wiki, DateTimeOffset since, CancellationToken ct = default)
+    {
+        if (wiki.RepositoryId is null)
+        {
+            // repositoryId nie zostało zwrócone przez API — fallback do pełnej synchronizacji
+            return null;
+        }
+
+        // Git Commits API z fromDate — zwraca commity od podanej daty
+        var fromDate = Uri.EscapeDataString(since.UtcDateTime.ToString("o"));
+        var url = $"{_project}/_apis/git/repositories/{wiki.RepositoryId}/commits" +
+                  $"?searchCriteria.fromDate={fromDate}&searchCriteria.itemPath=/&$top=1000&api-version={_apiVersion}";
+
+        var response = await _http.GetAsync(url, ct);
+
+        // Brak repozytorium lub brak uprawnień → fallback do pełnej synchronizacji
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+        var commits = json?["value"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
+
+        if (commits.Count == 0)
+            return [];
+
+        // Dla każdego commitu pobieramy zmienione pliki
+        var changedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var commit in commits)
+        {
+            var commitId = commit["commitId"]?.ToString();
+            if (commitId is null) continue;
+
+            var changesUrl = $"{_project}/_apis/git/repositories/{wiki.RepositoryId}/commits/{commitId}/changes" +
+                             $"?api-version={_apiVersion}";
+            var changesResponse = await _http.GetAsync(changesUrl, ct);
+            if (!changesResponse.IsSuccessStatusCode) continue;
+
+            var changesJson = await changesResponse.Content.ReadFromJsonAsync<JsonObject>(ct);
+            var changes = changesJson?["changes"]?.AsArray().OfType<JsonObject>() ?? [];
+
+            foreach (var change in changes)
+            {
+                var itemPath = change["item"]?["path"]?.ToString();
+                if (itemPath is null) continue;
+
+                // Pliki wiki mają rozszerzenie .md; konwertujemy ścieżkę Git → ścieżkę wiki
+                // (usuwamy mappedPath prefix i rozszerzenie .md)
+                var wikiPath = GitPathToWikiPath(itemPath, wiki.MappedPath);
+                if (wikiPath is not null)
+                    changedPaths.Add(wikiPath);
+            }
+        }
+
+        return [.. changedPaths];
+    }
+
+    /// <summary>
+    /// Konwertuje ścieżkę pliku Git na ścieżkę wiki.
+    /// Np. "/wiki/Architecture/Overview.md" (mappedPath="/wiki") → "/Architecture/Overview".
+    /// </summary>
+    private static string? GitPathToWikiPath(string gitPath, string? mappedPath)
+    {
+        if (!gitPath.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var prefix = string.IsNullOrEmpty(mappedPath) ? string.Empty : mappedPath.TrimEnd('/');
+        var relative = gitPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? gitPath[prefix.Length..]
+            : gitPath;
+
+        // Usuń rozszerzenie .md i zamień spacje-jako-myślniki jeśli DevOps tak koduje
+        var wikiPath = relative[..^3]; // usuń ".md"
+        return string.IsNullOrEmpty(wikiPath) ? null : wikiPath;
     }
 
     public async Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default)

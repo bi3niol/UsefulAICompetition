@@ -1,11 +1,12 @@
 ﻿using Azure.AI.Projects;
 using Azure.Identity;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
-using System.ClientModel;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Writer;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.Logging;
+using System.ClientModel;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App;
@@ -25,6 +26,7 @@ public class ImpactAnalysisPipeline
     public ImpactAnalysisPipeline(
         AIProjectClient projectClient,
         ResearchTools researchTools,
+        WriterTools writerTools,
         SenderTools senderTools,
         ILogger<ImpactAnalysisPipeline> logger)
     {
@@ -35,7 +37,8 @@ public class ImpactAnalysisPipeline
 
         _writer = projectClient.AsAIAgent(
             model: "gpt-4o",
-            instructions: AgentPrompts.WriterPrompt);
+            instructions: AgentPrompts.WriterPrompt,
+            tools: writerTools.GetAll());
 
         _editor = projectClient.AsAIAgent(
             model: "gpt-4o",

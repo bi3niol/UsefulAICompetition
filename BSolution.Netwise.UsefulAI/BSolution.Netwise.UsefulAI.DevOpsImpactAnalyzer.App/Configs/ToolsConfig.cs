@@ -7,6 +7,7 @@ using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Writer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
@@ -96,7 +97,8 @@ public static class ToolsConfig
         services.AddSingleton<GetWorkItemDetailsTool>();
         services.AddSingleton<GetWikiPageDetailsTool>();
         services.AddSingleton<ResearchTools>();
-
+        services.AddSingleton<WriterTools>();
+        
         // Sender tools
         services.AddSingleton<PostCommentTool>();
         services.AddSingleton<SenderTools>();

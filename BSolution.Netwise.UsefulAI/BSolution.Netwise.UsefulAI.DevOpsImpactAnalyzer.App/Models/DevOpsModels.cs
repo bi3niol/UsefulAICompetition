@@ -59,6 +59,12 @@ public class WikiInfo
     public string? Id { get; set; }
     public string? Name { get; set; }
     public string? RemoteUrl { get; set; }
+
+    /// <summary>ID repozytorium Git podpierającego tę wiki (pole <c>repositoryId</c> w API).</summary>
+    public string? RepositoryId { get; set; }
+
+    /// <summary>Ścieżka w repozytorium Git, pod którą leżą pliki wiki (pole <c>mappedPath</c> w API).</summary>
+    public string? MappedPath { get; set; }
 }
 
 /// <summary>

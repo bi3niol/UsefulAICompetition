@@ -148,14 +148,14 @@ Reuse `StringExtensions.SplitIntoChunks(...)`.
 
 Current limits:
 
-- Work items: max `8000` chars per chunk
-- WIKI pages: max `6000` chars per chunk
+- Work items: max `6000` chars per chunk
+- WIKI pages: max `4500` chars per chunk
 
 Do not invent a second chunking implementation unless necessary.
 
 ### Upload sizing
 - Azure AI Search uploads: max `500` documents per batch
-- Work item ID batches: max `200` IDs
+- Work item ID batches: max `100` IDs
 
 ### Missing/broken data handling
 For fetch stages:
