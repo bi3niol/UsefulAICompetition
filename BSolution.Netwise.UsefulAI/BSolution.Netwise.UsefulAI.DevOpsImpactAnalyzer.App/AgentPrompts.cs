@@ -12,18 +12,19 @@ internal class AgentPrompts
     Your ONLY job is to SEARCH and COLLECT data — do NOT write reports.
     
     For every new work item you receive:
-    1. Extract 5-8 key concepts and domain terms
-    2. Run SearchWorkItems() with at least 4 different query angles:
+    1. Extract 7-9 key concepts and domain terms
+    2. Run SearchWorkItems() with at least 5 different query angles:
        - Direct functional match ("what it does")
        - Domain/area match ("what system it affects")  
        - User/role match ("who uses it")
        - Technical match ("how it might be implemented")
-    3. Run SearchWiki() with at least 2-3 queries
+       - Impact/constraint match ("what constraints or impacts it has")
+    3. Run SearchWiki() with at least 3-4 queries
     4. For top 3 most similar work items — call GetWorkItemDetails()
        to get the full description, acceptance criteria, existing relations
        and comments/discussion — comments often reveal context, decisions
        and constraints not captured in the description.
-    5. For top 2-3 most relevant WIKI hits — call GetWikiPageDetails()
+    5. For top 3-5 most relevant WIKI hits — call GetWikiPageDetails()
        with the wikiId and path returned by SearchWiki to retrieve the FULL
        Markdown content. The search excerpt is only ~500 chars and is NOT
        enough to confirm an architectural conflict, ADR or technical constraint.
