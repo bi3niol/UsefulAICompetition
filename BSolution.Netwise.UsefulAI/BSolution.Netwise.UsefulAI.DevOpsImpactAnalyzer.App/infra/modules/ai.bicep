@@ -10,6 +10,9 @@ param tags object
 @description('Principal ID of the Function App system-assigned managed identity for RBAC assignments')
 param functionAppPrincipalId string
 
+@description('Capacity (in thousands of tokens per minute) for model deployments')
+param modelCapacity int = 50
+
 // ── Naming ────────────────────────────────────────────────────────────────────
 // AIServices (new Foundry) account: globally unique, becomes the subdomain
 //   <accountName>.services.ai.azure.com
@@ -94,7 +97,7 @@ resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-
   name: 'gpt-4o'
   sku: {
     name: 'GlobalStandard'
-    capacity: 10 // 10K tokens/min — increase for prod
+    capacity: modelCapacity
   }
   properties: {
     model: {
@@ -105,14 +108,32 @@ resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-
   }
 }
 
+// o4-mini — used by Researcher and Writer agents (stronger reasoning model)
+resource o4MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = {
+  parent: aiFoundry
+  name: 'o4-mini'
+  dependsOn: [gpt4oDeployment]
+  sku: {
+    name: 'Standard'
+    capacity: modelCapacity
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'o4-mini'
+      version: '2025-04-16'
+    }
+  }
+}
+
 // text-embedding-3-large — used by WorkItemIndexer + WikiIndexer (3072 dims)
 resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = {
   parent: aiFoundry
   name: 'text-embedding-3-large'
-  dependsOn: [gpt4oDeployment]
+  dependsOn: [o4MiniDeployment]
   sku: {
     name: 'Standard'
-    capacity: 10 // 10K tokens/min — increase if indexing is slow
+    capacity: modelCapacity
   }
   properties: {
     model: {

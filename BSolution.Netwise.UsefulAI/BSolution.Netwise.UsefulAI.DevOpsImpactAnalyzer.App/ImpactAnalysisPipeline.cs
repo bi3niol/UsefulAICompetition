@@ -5,6 +5,7 @@ using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Writer;
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.ClientModel;
 using System.Text.Json;
@@ -28,24 +29,30 @@ public class ImpactAnalysisPipeline
         ResearchTools researchTools,
         WriterTools writerTools,
         SenderTools senderTools,
+        IConfiguration configuration,
         ILogger<ImpactAnalysisPipeline> logger)
     {
+        var researcherModel = configuration["Pipeline:ResearcherModel"] ?? "o4-mini";
+        var writerModel = configuration["Pipeline:WriterModel"] ?? "o4-mini";
+        var editorModel = configuration["Pipeline:EditorModel"] ?? "gpt-4o";
+        var senderModel = configuration["Pipeline:SenderModel"] ?? "gpt-4o";
+
         _researcher = projectClient.AsAIAgent(
-            model: "gpt-4o",
+            model: researcherModel,
             instructions: AgentPrompts.ResearcherPrompt,
             tools: researchTools.GetAll());
 
         _writer = projectClient.AsAIAgent(
-            model: "gpt-4o",
+            model: writerModel,
             instructions: AgentPrompts.WriterPrompt,
             tools: writerTools.GetAll());
 
         _editor = projectClient.AsAIAgent(
-            model: "gpt-4o",
+            model: editorModel,
             instructions: AgentPrompts.EditorPrompt);
 
         _sender = projectClient.AsAIAgent(
-            model: "gpt-4o",
+            model: senderModel,
             instructions: AgentPrompts.SenderPrompt,
             tools: senderTools.GetAll());
         _logger = logger;

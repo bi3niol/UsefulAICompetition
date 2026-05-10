@@ -208,6 +208,12 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     AzureDevOps__Organization:          '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--Organization)'
     AzureDevOps__Project:               '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--Project)'
     AzureDevOps__PersonalAccessToken:   '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--PersonalAccessToken)'
+
+    // ── Pipeline agent model configuration ──
+    Pipeline__ResearcherModel: 'o4-mini'
+    Pipeline__WriterModel: 'o4-mini'
+    Pipeline__EditorModel: 'gpt-4o'
+    Pipeline__SenderModel: 'gpt-4o'
   }
   // Ensure RBAC propagation finishes before the Function App tries to resolve the
   // @Microsoft.KeyVault(...) references on cold start.
