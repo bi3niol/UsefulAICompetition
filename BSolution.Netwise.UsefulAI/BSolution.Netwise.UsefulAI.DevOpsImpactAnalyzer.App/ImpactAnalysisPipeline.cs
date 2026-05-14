@@ -14,10 +14,11 @@ namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App;
 
 public class ImpactAnalysisPipeline
 {
-    private readonly AIAgent _researcher;
-    private readonly AIAgent _writer;
-    private readonly AIAgent _editor;
-    private readonly AIAgent _sender;
+    private readonly AIProjectClient _projectClient;
+    private readonly ResearchTools _researchTools;
+    private readonly WriterTools _writerTools;
+    private readonly SenderTools _senderTools;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<ImpactAnalysisPipeline> _logger;
 
     private const int MaxEditorRetries = 2;
@@ -32,41 +33,24 @@ public class ImpactAnalysisPipeline
         IConfiguration configuration,
         ILogger<ImpactAnalysisPipeline> logger)
     {
-        var researcherModel = configuration["Pipeline:ResearcherModel"] ?? "o4-mini";
-        var writerModel = configuration["Pipeline:WriterModel"] ?? "o4-mini";
-        var editorModel = configuration["Pipeline:EditorModel"] ?? "gpt-4o";
-        var senderModel = configuration["Pipeline:SenderModel"] ?? "gpt-4o";
-
-        _researcher = projectClient.AsAIAgent(
-            model: researcherModel,
-            instructions: AgentPrompts.ResearcherPrompt,
-            tools: researchTools.GetAll());
-
-        _writer = projectClient.AsAIAgent(
-            model: writerModel,
-            instructions: AgentPrompts.WriterPrompt,
-            tools: writerTools.GetAll());
-
-        _editor = projectClient.AsAIAgent(
-            model: editorModel,
-            instructions: AgentPrompts.EditorPrompt);
-
-        _sender = projectClient.AsAIAgent(
-            model: senderModel,
-            instructions: AgentPrompts.SenderPrompt,
-            tools: senderTools.GetAll());
+        _projectClient = projectClient;
+        _researchTools = researchTools;
+        _writerTools = writerTools;
+        _senderTools = senderTools;
+        _configuration = configuration;
         _logger = logger;
     }
 
     public async Task<string> RunAsync(WorkItemEvent workItem)
     {
-        _logger.LogInformation("[PIPELINE] Starting analysis for WI#{WorkItemId}", workItem.Id);
+        var isBug = workItem.Type.Equals("Bug", StringComparison.OrdinalIgnoreCase);
+        _logger.LogInformation("[PIPELINE] Starting analysis for WI#{WorkItemId} (Type: {Type})", workItem.Id, workItem.Type);
 
         // KROK 1: Researcher zbiera dane
-        var findings = await RunResearcherAsync(workItem);
+        var findings = await RunResearcherAsync(workItem, isBug);
 
         // KROK 2 + 3: Writer pisze → Editor ocenia (z możliwością iteracji)
-        var approvedReport = await RunWriterEditorLoopAsync(workItem, findings);
+        var approvedReport = await RunWriterEditorLoopAsync(workItem, findings, isBug);
 
         // KROK 4: Sender wyłączony — raport zwracany do wywołującego
         _logger.LogInformation("[PIPELINE] Analysis complete for WI#{WorkItemId}", workItem.Id);
@@ -75,9 +59,16 @@ public class ImpactAnalysisPipeline
     }
 
     // ── KROK 1 ──────────────────────────────────────────────────────────────
-    private async Task<ResearchFindings> RunResearcherAsync(WorkItemEvent workItem)
+    private async Task<ResearchFindings> RunResearcherAsync(WorkItemEvent workItem, bool isBug)
     {
         _logger.LogInformation("[RESEARCHER] Searching DevOps items and WIKI...");
+
+        var researcherModel = _configuration["Pipeline:ResearcherModel"] ?? "o4-mini";
+        var researcherPrompt = isBug ? AgentPrompts.BugResearcherPrompt : AgentPrompts.ResearcherPrompt;
+        var researcher = _projectClient.AsAIAgent(
+            model: researcherModel,
+            instructions: researcherPrompt,
+            tools: _researchTools.GetAll());
 
         var prompt = $"""
             New work item to analyze:
@@ -93,7 +84,7 @@ public class ImpactAnalysisPipeline
         """;
 
         var result = await WithRateLimitRetryAsync(
-            () => _researcher.RunAsync<ResearchFindings>(prompt),
+            () => researcher.RunAsync<ResearchFindings>(prompt),
             "RESEARCHER");
         return result.Result;
     }
@@ -101,7 +92,8 @@ public class ImpactAnalysisPipeline
     // ── KROK 2 + 3 ──────────────────────────────────────────────────────────
     private async Task<string> RunWriterEditorLoopAsync(
         WorkItemEvent workItem,
-        ResearchFindings findings)
+        ResearchFindings findings,
+        bool isBug)
     {
         var retries = 0;
         string report;
@@ -111,12 +103,12 @@ public class ImpactAnalysisPipeline
         {
             // WRITER: produkuje raport
             _logger.LogInformation("[WRITER] Generating report (attempt {Attempt})...", retries + 1);
-            report = await RunWriterAsync(workItem, findings,
+            report = await RunWriterAsync(workItem, findings, isBug,
                 previousFeedback: decision?.Feedback);
 
             // EDITOR: ocenia raport
             _logger.LogInformation("[EDITOR] Reviewing report...");
-            decision = await RunEditorAsync(workItem, findings, report);
+            decision = await RunEditorAsync(workItem, findings, report, isBug);
 
             if (!decision.IsApproved)
                 _logger.LogWarning("[EDITOR] Rejected. Feedback: {Feedback}", decision.Feedback);
@@ -138,14 +130,22 @@ public class ImpactAnalysisPipeline
     private async Task<string> RunWriterAsync(
         WorkItemEvent workItem,
         ResearchFindings findings,
+        bool isBug,
         string? previousFeedback)
     {
+        var writerModel = _configuration["Pipeline:WriterModel"] ?? "o4-mini";
+        var writerPrompt = isBug ? AgentPrompts.BugWriterPrompt : AgentPrompts.WriterPrompt;
+        var writer = _projectClient.AsAIAgent(
+            model: writerModel,
+            instructions: writerPrompt,
+            tools: _writerTools.GetAll());
+
         var feedbackSection = previousFeedback != null
             ? $"\n\n## Editor Feedback to Address:\n{previousFeedback}"
             : string.Empty;
 
         var prompt = $"""
-            Write an impact analysis report for:
+            Write {(isBug ? "a bug diagnosis report" : "an impact analysis report")} for:
             Title: {workItem.Title} (#{workItem.Id})
             Type: {workItem.Type}
 
@@ -157,17 +157,24 @@ public class ImpactAnalysisPipeline
         """;
 
         return (await WithRateLimitRetryAsync(
-            () => _writer.RunAsync<string>(prompt),
+            () => writer.RunAsync<string>(prompt),
             "WRITER")).Result;
     }
 
     private async Task<EditorDecision> RunEditorAsync(
         WorkItemEvent workItem,
         ResearchFindings findings,
-        string draftReport)
+        string draftReport,
+        bool isBug)
     {
+        var editorModel = _configuration["Pipeline:EditorModel"] ?? "gpt-4o";
+        var editorPrompt = isBug ? AgentPrompts.BugEditorPrompt : AgentPrompts.EditorPrompt;
+        var editor = _projectClient.AsAIAgent(
+            model: editorModel,
+            instructions: editorPrompt);
+
         var prompt = $$"""
-            Review this impact analysis report for WI#{{workItem.Id}}.
+            Review this {{(isBug ? "bug diagnosis" : "impact analysis")}} report for WI#{{workItem.Id}}.
 
             Original work item:
             Title: {{workItem.Title}}
@@ -183,7 +190,7 @@ public class ImpactAnalysisPipeline
         """;
 
         var result = await WithRateLimitRetryAsync(
-            () => _editor.RunAsync<EditorDecision>(prompt),
+            () => editor.RunAsync<EditorDecision>(prompt),
             "EDITOR");
         return result.Result;
     }
@@ -193,6 +200,12 @@ public class ImpactAnalysisPipeline
     {
         _logger.LogInformation("[SENDER] Posting report to WI#{WorkItemId}...", workItemId);
 
+        var senderModel = _configuration["Pipeline:SenderModel"] ?? "gpt-4o";
+        var sender = _projectClient.AsAIAgent(
+            model: senderModel,
+            instructions: AgentPrompts.SenderPrompt,
+            tools: _senderTools.GetAll());
+
         var prompt = $"""
             Post this approved impact analysis report as a comment 
             on work item #{workItemId}:
@@ -201,7 +214,7 @@ public class ImpactAnalysisPipeline
         """;
 
         await WithRateLimitRetryAsync(
-            async () => { await _sender.RunAsync(prompt); return 0; },
+            async () => { await sender.RunAsync(prompt); return 0; },
             "SENDER");
     }
 

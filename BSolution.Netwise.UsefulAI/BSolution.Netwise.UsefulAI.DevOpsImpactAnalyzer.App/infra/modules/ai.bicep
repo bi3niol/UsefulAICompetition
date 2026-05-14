@@ -29,14 +29,14 @@ var azureAiDeveloperRoleId             = '64702f94-c441-49e6-a78b-ef80e0188fee'
 var searchIndexDataContributorRoleId   = '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
 var searchServiceContributorRoleId     = '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
 
-// ── Azure AI Search (Standard — required for semantic reranker + vector HNSW) ─
+// ── Azure AI Search (Basic — sufficient for dev/small workloads) ───────────────
 
 resource aiSearch 'Microsoft.Search/searchServices@2024-03-01-preview' = {
   name: searchName
   location: location
   tags: tags
   sku: {
-    name: 'standard'
+    name: 'basic'
   }
   properties: {
     replicaCount: 1
