@@ -1,4 +1,4 @@
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App;
+namespace BSolution.Netwise.UsefulAI.Core.Extensions;
 
 public static class StringExtensions
 {

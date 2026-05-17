@@ -45,4 +45,8 @@
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BSolution.Netwise.UsefulAI.Core\BSolution.Netwise.UsefulAI.Core.csproj" />
+  </ItemGroup>
+
 </Project>

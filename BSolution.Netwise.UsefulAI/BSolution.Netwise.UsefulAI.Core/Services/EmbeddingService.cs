@@ -1,19 +1,19 @@
-ï»¿using Azure;
+using Azure;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Embeddings;
 using System.ClientModel;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+namespace BSolution.Netwise.UsefulAI.Core.Services;
 
 public interface IEmbeddingService
 {
     Task<float[]> GetEmbeddingAsync(string text, CancellationToken ct = default);
 
     /// <summary>
-    /// Embeduje wiele tekstÃ³w w jednym Å¼Ä…daniu do API (batch).
-    /// KolejnoÅ›Ä‡ wynikÃ³w odpowiada kolejnoÅ›ci <paramref name="texts"/>.
+    /// Embeduje wiele tekstów w jednym ¿¹daniu do API (batch).
+    /// Kolejnoœæ wyników odpowiada kolejnoœci <paramref name="texts"/>.
     /// </summary>
     Task<float[][]> GetEmbeddingsAsync(IEnumerable<string> texts, CancellationToken ct = default);
 }
@@ -54,9 +54,9 @@ public class EmbeddingService : IEmbeddingService
         var normalized = texts.Select(NormalizeText).ToList();
         var results = new float[normalized.Count][];
 
-        // Sub-batching: max EmbeddingBatchSize inputÃ³w na request, Å¼eby nie spaliÄ‡ limitu TPM
-        // w jednym strzale. Azure OpenAI limit to 2048 inputÃ³w/request, ale TPM-wise
-        // bezpieczniej trzymaÄ‡ siÄ™ ~16 chunkÃ³w Ã— 8k tokenÃ³w = ~128k tokenÃ³w/request.
+        // Sub-batching: max EmbeddingBatchSize inputów na request, ¿eby nie spaliæ limitu TPM
+        // w jednym strzale. Azure OpenAI limit to 2048 inputów/request, ale TPM-wise
+        // bezpieczniej trzymaæ siê ~16 chunków × 8k tokenów = ~128k tokenów/request.
         for (var offset = 0; offset < normalized.Count; offset += EmbeddingBatchSize)
         {
             ct.ThrowIfCancellationRequested();
@@ -75,15 +75,15 @@ public class EmbeddingService : IEmbeddingService
         return results;
     }
 
-    // ~16 chunkÃ³w Ã— max 8 000 tokenÃ³w â‰ˆ 128 000 tokenÃ³w/request â€” bezpieczny margines dla TPM
+    // ~16 chunków × max 8 000 tokenów ? 128 000 tokenów/request — bezpieczny margines dla TPM
     private const int EmbeddingBatchSize = 16;
     private const int MaxRetryAttempts = 5;
     private static readonly Random _jitter = Random.Shared;
 
     /// <summary>
     /// Wykonuje <paramref name="action"/> z retry na 429 (TooManyRequests).
-    /// Respektuje Retry-After header; fallback: exponential backoff z jitterem (Â±20%) max 120s.
-    /// Jitter zapobiega thundering herd gdy wiele instancji dostaje 429 jednoczeÅ›nie.
+    /// Respektuje Retry-After header; fallback: exponential backoff z jitterem (±20%) max 120s.
+    /// Jitter zapobiega thundering herd gdy wiele instancji dostaje 429 jednoczeœnie.
     /// </summary>
     private static async Task<T> WithRetryAsync<T>(Func<Task<T>> action, CancellationToken ct)
     {
@@ -107,7 +107,7 @@ public class EmbeddingService : IEmbeddingService
                     ? TimeSpan.FromSeconds(120)
                     : retryAfter;
 
-                // Â±20% jitter â€” rozbija thundering herd gdy wiele instancji dostaje 429 razem
+                // ±20% jitter — rozbija thundering herd gdy wiele instancji dostaje 429 razem
                 var jitterFactor = 0.8 + _jitter.NextDouble() * 0.4;
                 var wait = TimeSpan.FromMilliseconds(baseWait.TotalMilliseconds * jitterFactor);
 

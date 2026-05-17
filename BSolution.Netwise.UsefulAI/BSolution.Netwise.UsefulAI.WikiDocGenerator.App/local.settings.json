@@ -1,0 +1,31 @@
+{
+    "IsEncrypted": false,
+    "Values": {
+        "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+        "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+        "Pipeline__ResearcherModel": "o4-mini",
+        "Pipeline__WriterModel": "o4-mini",
+        "Pipeline__EditorModel": "gpt-4o",
+        "Pipeline__SenderModel": "gpt-4o"
+        // Wymagana konfiguracja produkcyjna (przykłady):
+        //"AzureWebJobsStorage__accountName": "<storage-account>",
+        //"AzureWebJobsStorage__credential": "managedidentity",
+        //"ServiceBus__fullyQualifiedNamespace": "<sb-namespace>.servicebus.windows.net",
+        //"Foundry:Endpoint": "https://<foundry>.services.ai.azure.com/api/projects/<project>",
+        //"AzureSearch:Endpoint": "https://<search>.search.windows.net",
+        //"AzureOpenAI:Endpoint": "https://<openai>.openai.azure.com/",
+        //"AzureOpenAI:EmbeddingDeployment": "text-embedding-3-large",
+        //"AzureDevOps:Organization": "<org>",
+        //"AzureDevOps:Project": "<project>",
+        //"AzureDevOps:PersonalAccessToken": "<PAT>",
+        // Wiki Doc Generator — osobne wiki i osobne indeksy AI Search,
+        // żeby nie mieszać generowanej dokumentacji z ręczną.
+        //"WikiDocGenerator:TargetWikiId": "<wiki-id-generated>",
+        //"WikiDocGenerator:SourceRepositoryId": "<repo-id>",
+        //"WikiDocGenerator:SearchIndexName": "generated-wiki-pages"
+    },
+    "Host": {
+        "CORS": "*",
+        "CORSCredentials": false
+    }
+}

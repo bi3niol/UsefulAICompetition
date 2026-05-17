@@ -3,11 +3,11 @@ using Azure.Core;
 using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
-using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+using BSolution.Netwise.UsefulAI.Core.Models;
 using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+namespace BSolution.Netwise.UsefulAI.Core.Services;
 
 public interface IAzureSearchService
 {

@@ -1,8 +1,8 @@
-ï»¿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+namespace BSolution.Netwise.UsefulAI.Core.Models;
 
 public record WorkItemEvent(
     int Id,
@@ -15,7 +15,7 @@ public record WorkItemEvent(
 );
 
 /// <summary>
-/// Referencja do analizowanego work itemu â€” czÄ™Å›Ä‡ strukturalnego outputu Researchera.
+/// Referencja do analizowanego work itemu — czêœæ strukturalnego outputu Researchera.
 /// </summary>
 public record WorkItemRef(
     int Id,

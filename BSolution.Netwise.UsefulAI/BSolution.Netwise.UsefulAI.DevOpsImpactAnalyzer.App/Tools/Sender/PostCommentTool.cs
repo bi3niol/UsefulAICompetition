@@ -1,4 +1,4 @@
-ï»¿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,9 +10,9 @@ namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 
 public class PostCommentTool(IAzureDevOpsService devOpsService)
 {
-    // Header ktÃ³ry bÄ™dzie nagÅ‚Ã³wkiem kaÅ¼dego komentarza AI
+    // Header który bêdzie nag³ówkiem ka¿dego komentarza AI
     private const string CommentHeader = """
-        > ðŸ¤– **Automated Impact Analysis** | Powered by AI Agent
+        > ?? **Automated Impact Analysis** | Powered by AI Agent
         > *This report was generated automatically. Please review before acting.*
         
         ---
@@ -33,7 +33,7 @@ public class PostCommentTool(IAzureDevOpsService devOpsService)
         [Description("The complete approved markdown impact analysis report")]
         string reportContent)
     {
-        // Walidacja â€” nie dopuszczamy pustego raportu
+        // Walidacja — nie dopuszczamy pustego raportu
         if (string.IsNullOrWhiteSpace(reportContent))
         {
             return JsonSerializer.Serialize(new

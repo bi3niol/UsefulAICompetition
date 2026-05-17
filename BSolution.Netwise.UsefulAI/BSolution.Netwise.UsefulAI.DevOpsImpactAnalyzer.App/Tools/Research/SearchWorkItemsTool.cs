@@ -1,4 +1,4 @@
-﻿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;

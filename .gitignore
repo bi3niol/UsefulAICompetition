@@ -5,3 +5,7 @@
 /BSolution.Netwise.UsefulAI/.vs
 /.vs
 /BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/obj/Debug
+/BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.Core/bin/Debug/net10.0
+/BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.Core/obj
+/BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.WikiDocGenerator.App/bin/Debug/net10.0
+/BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.WikiDocGenerator.App/obj

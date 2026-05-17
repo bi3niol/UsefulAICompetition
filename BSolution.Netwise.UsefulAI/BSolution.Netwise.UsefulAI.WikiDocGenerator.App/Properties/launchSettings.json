@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "BSolution.Netwise.UsefulAI.WikiDocGenerator.App": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7072",
+      "launchBrowser": false
+    }
+  }
+}

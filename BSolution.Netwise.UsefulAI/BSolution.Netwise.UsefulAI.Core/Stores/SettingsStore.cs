@@ -1,10 +1,10 @@
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
-using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+using BSolution.Netwise.UsefulAI.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
+namespace BSolution.Netwise.UsefulAI.Core.Stores;
 
 /// <summary>
 /// Generyczny key-value store oparty o Azure Tables (tabela <c>Settings</c>).

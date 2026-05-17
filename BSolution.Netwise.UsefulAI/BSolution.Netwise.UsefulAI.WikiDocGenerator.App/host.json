@@ -1,0 +1,21 @@
+{
+    "version": "2.0",
+    "functionTimeout": "01:00:00",
+    "logging": {
+        "applicationInsights": {
+            "samplingSettings": {
+                "isEnabled": true,
+                "excludedTypes": "Request"
+            },
+            "enableLiveMetricsFilters": true
+        }
+    },
+    "extensions": {
+        "serviceBus": {
+            // Throttling konsumentów — dobrane pod limity Embedding API i DevOps REST API.
+            "maxConcurrentCalls": 4,
+            "prefetchCount": 8,
+            "maxAutoLockRenewalDuration": "01:05:00"
+        }
+    }
+}

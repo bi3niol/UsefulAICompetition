@@ -1,8 +1,8 @@
-ï»¿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+namespace BSolution.Netwise.UsefulAI.Core.Models;
 
 public class WorkItemDetail
 {
@@ -49,7 +49,7 @@ public class WikiPageDetail
     public string? RemoteUrl { get; set; }
     public string? GitItemPath { get; set; }
 
-    /// <summary>ETag z nagÅ‚Ã³wka HTTP â€” uÅ¼ywany do wykrywania zmian podczas incremental sync.</summary>
+    /// <summary>ETag z nag³ówka HTTP — u¿ywany do wykrywania zmian podczas incremental sync.</summary>
     public string? ETag { get; set; }
 }
 
@@ -60,10 +60,10 @@ public class WikiInfo
     public string? Name { get; set; }
     public string? RemoteUrl { get; set; }
 
-    /// <summary>ID repozytorium Git podpierajÄ…cego tÄ™ wiki (pole <c>repositoryId</c> w API).</summary>
+    /// <summary>ID repozytorium Git podpieraj¹cego tê wiki (pole <c>repositoryId</c> w API).</summary>
     public string? RepositoryId { get; set; }
 
-    /// <summary>ÅšcieÅ¼ka w repozytorium Git, pod ktÃ³rÄ… leÅ¼Ä… pliki wiki (pole <c>mappedPath</c> w API).</summary>
+    /// <summary>Œcie¿ka w repozytorium Git, pod któr¹ le¿¹ pliki wiki (pole <c>mappedPath</c> w API).</summary>
     public string? MappedPath { get; set; }
 }
 
@@ -82,8 +82,8 @@ public class WorkItemSearchHit
     public string? Tags { get; set; }
 
     /// <summary>
-    /// Snippety z dopasowaniami per pole (klucz = nazwa pola, wartoÅ›Ä‡ = fragmenty z tagami
-    /// &lt;highlighthit&gt;...&lt;/highlighthit&gt; wokÃ³Å‚ znalezionych sÅ‚Ã³w).
+    /// Snippety z dopasowaniami per pole (klucz = nazwa pola, wartoœæ = fragmenty z tagami
+    /// &lt;highlighthit&gt;...&lt;/highlighthit&gt; wokó³ znalezionych s³ów).
     /// </summary>
     public Dictionary<string, List<string>> Highlights { get; set; } = [];
 

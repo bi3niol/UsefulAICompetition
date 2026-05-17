@@ -1,5 +1,5 @@
-﻿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
-using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.Core.Models;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using Microsoft.Agents.AI;
 using System.ComponentModel;
 using System.Text.Json;

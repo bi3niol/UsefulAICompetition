@@ -1,4 +1,4 @@
-﻿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -28,7 +28,7 @@ public class SearchWikiTool(
         string query,
 
         [Description("Minimum similarity score between 0.0 and 1.0. Default: 0.65 " +
-                     "(lower than work items — WIKI uses broader language)")]
+                     "(lower than work items � WIKI uses broader language)")]
         double minSimilarity = 0.65,
 
         [Description("Maximum number of results to return. Default: 5")]

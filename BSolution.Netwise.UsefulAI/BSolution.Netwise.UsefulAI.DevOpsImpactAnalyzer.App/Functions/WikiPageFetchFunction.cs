@@ -1,6 +1,7 @@
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing.Messages;
+using BSolution.Netwise.UsefulAI.Core.Stores;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
-using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 

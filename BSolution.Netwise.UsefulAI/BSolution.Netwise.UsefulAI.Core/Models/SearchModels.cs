@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+namespace BSolution.Netwise.UsefulAI.Core.Models;
 
 public class SearchResultItem
 {

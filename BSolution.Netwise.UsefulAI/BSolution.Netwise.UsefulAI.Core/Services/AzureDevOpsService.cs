@@ -1,4 +1,4 @@
-ï»¿using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+using BSolution.Netwise.UsefulAI.Core.Models;
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Http.Headers;
@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+namespace BSolution.Netwise.UsefulAI.Core.Services;
 
 public interface IAzureDevOpsService
 {
@@ -15,42 +15,76 @@ public interface IAzureDevOpsService
     Task<string> AddCommentAsync(int workItemId, string comment, CancellationToken ct = default);
     Task<WikiPageDetail> GetWikiPageAsync(string wikiId, string pagePath, CancellationToken ct = default);
 
-    /// <summary>Wykonuje zapytanie WIQL i zwraca listÄ™ ID work itemÃ³w.</summary>
+    /// <summary>Wykonuje zapytanie WIQL i zwraca listê ID work itemów.</summary>
     Task<List<int>> QueryWorkItemIdsAsync(string wiql, CancellationToken ct = default);
 
-    /// <summary>Pobiera szczegÃ³Å‚y wielu work itemÃ³w w jednym Å¼Ä…daniu (max 200 ID).</summary>
+    /// <summary>Pobiera szczegó³y wielu work itemów w jednym ¿¹daniu (max 200 ID).</summary>
     Task<List<WorkItemDetail>> GetWorkItemsBatchAsync(IEnumerable<int> ids, CancellationToken ct = default);
 
     /// <summary>Pobiera komentarze dla pojedynczego work itemu (osobny endpoint w DevOps API).</summary>
     Task<List<WorkItemComment>> GetWorkItemCommentsAsync(int workItemId, CancellationToken ct = default);
 
-    /// <summary>Zwraca listÄ™ wszystkich wiki w projekcie.</summary>
+    /// <summary>Zwraca listê wszystkich wiki w projekcie.</summary>
     Task<List<WikiInfo>> GetWikiListAsync(CancellationToken ct = default);
 
-    /// <summary>Zwraca peÅ‚nÄ…, spÅ‚aszczonÄ… listÄ™ Å›cieÅ¼ek stron wiki (bez treÅ›ci).</summary>
+    /// <summary>Zwraca pe³n¹, sp³aszczon¹ listê œcie¿ek stron wiki (bez treœci).</summary>
     Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default);
 
     /// <summary>
-    /// Zwraca Å›cieÅ¼ki stron wiki zmodyfikowanych lub dodanych po <paramref name="since"/>.
-    /// UÅ¼ywa Git Commits API (searchCriteria.fromDate) na repozytorium podpierajÄ…cym wiki.
-    /// Zwraca <c>null</c> jako sygnaÅ‚ do fallbacku na peÅ‚nÄ… synchronizacjÄ™ â€” moÅ¼e wystÄ…piÄ‡ gdy
-    /// <c>repositoryId</c> nie zostaÅ‚o zwrÃ³cone przez API lub PAT nie ma uprawnieÅ„ Repos (Read).
+    /// Zwraca œcie¿ki stron wiki zmodyfikowanych lub dodanych po <paramref name="since"/>.
+    /// U¿ywa Git Commits API (searchCriteria.fromDate) na repozytorium podpieraj¹cym wiki.
+    /// Zwraca <c>null</c> jako sygna³ do fallbacku na pe³n¹ synchronizacjê — mo¿e wyst¹piæ gdy
+    /// <c>repositoryId</c> nie zosta³o zwrócone przez API lub PAT nie ma uprawnieñ Repos (Read).
     /// </summary>
     Task<List<string>?> GetChangedWikiPagePathsAsync(WikiInfo wiki, DateTimeOffset since, CancellationToken ct = default);
 
     /// <summary>
-    /// Wyszukuje work itemy uÅ¼ywajÄ…c natywnego DevOps Work Item Search API
-    /// (Lucene query syntax â€” fuzzy, wildcards, field-scoped, boolean ops, BM25).
+    /// Wyszukuje work itemy u¿ywaj¹c natywnego DevOps Work Item Search API
+    /// (Lucene query syntax — fuzzy, wildcards, field-scoped, boolean ops, BM25).
     /// </summary>
-    /// <param name="searchText">Query w skÅ‚adni Lucene (np. "authentication~" lub "title:login AND state:Active").</param>
+    /// <param name="searchText">Query w sk³adni Lucene (np. "authentication~" lub "title:login AND state:Active").</param>
     /// <param name="filters">Filtry per pole DevOps. Klucze: System.WorkItemType, System.State, System.AreaPath, System.AssignedTo, System.Tags.</param>
-    /// <param name="top">Maks. liczba wynikÃ³w (1-1000).</param>
+    /// <param name="top">Maks. liczba wyników (1-1000).</param>
     /// <param name="skip">Offset paginacji.</param>
     Task<List<WorkItemSearchHit>> SearchWorkItemsByKeywordsAsync(
         string searchText,
         IReadOnlyDictionary<string, string[]>? filters = null,
         int top = 50,
         int skip = 0,
+        CancellationToken ct = default);
+
+    // ?? Repos / Pull Requests ???????????????????????????????????????????????
+
+    /// <summary>Zwraca listê wszystkich repozytoriów Git w projekcie.</summary>
+    Task<List<GitRepositoryInfo>> GetRepositoriesAsync(CancellationToken ct = default);
+
+    /// <summary>Pobiera szczegó³y PR po jego ID i nazwie/ID repozytorium.</summary>
+    Task<PullRequestDetail?> GetPullRequestAsync(string repositoryId, int pullRequestId, CancellationToken ct = default);
+
+    /// <summary>Lista zmian plikowych w PR (add/edit/delete/rename) wzglêdem branch'a docelowego.</summary>
+    Task<List<PullRequestChange>> GetPullRequestChangesAsync(string repositoryId, int pullRequestId, CancellationToken ct = default);
+
+    /// <summary>Work itemy powi¹zane z PR (linki do work items w opisie / commitach).</summary>
+    Task<List<int>> GetPullRequestWorkItemIdsAsync(string repositoryId, int pullRequestId, CancellationToken ct = default);
+
+    /// <summary>Pobiera zawartoœæ pliku z repo na konkretnym commicie (null jeœli plik usuniêty/nieobecny).</summary>
+    Task<string?> GetFileContentAsync(string repositoryId, string path, string? commitId = null, CancellationToken ct = default);
+
+    /// <summary>Lista plików/folderów w repo na zadanej œcie¿ce (rekursywnie jeœli <paramref name="recursive"/>).</summary>
+    Task<List<GitItem>> GetRepositoryItemsAsync(string repositoryId, string path = "/", bool recursive = false, string? commitId = null, CancellationToken ct = default);
+
+    // ?? WIKI write ??????????????????????????????????????????????????????????
+
+    /// <summary>
+    /// Tworzy now¹ stronê wiki lub aktualizuje istniej¹c¹ (PUT /wiki/wikis/{wikiId}/pages).
+    /// Jeœli strona istnieje wymagany jest <paramref name="eTag"/> (If-Match). Gdy <paramref name="eTag"/>
+    /// jest null, robi best-effort: spróbuje pobraæ aktualny ETag i ponownie zapisaæ.
+    /// </summary>
+    Task<WikiPageWriteResult> CreateOrUpdateWikiPageAsync(
+        string wikiId,
+        string pagePath,
+        string contentMarkdown,
+        string? eTag = null,
         CancellationToken ct = default);
 }
 
@@ -63,8 +97,8 @@ public class AzureDevOpsService : IAzureDevOpsService
 
     /// <summary>
     /// Search API (extension) jest hostowany pod osobnym subdomenem almsearch.dev.azure.com,
-    /// wiÄ™c nie moÅ¼emy uÅ¼yÄ‡ HttpClient.BaseAddress â€” wysyÅ‚amy z absolutnym URI.
-    /// PAT z domyÅ›lnego nagÅ‚Ã³wka Authorization dziaÅ‚a teÅ¼ na tym hoÅ›cie.
+    /// wiêc nie mo¿emy u¿yæ HttpClient.BaseAddress — wysy³amy z absolutnym URI.
+    /// PAT z domyœlnego nag³ówka Authorization dzia³a te¿ na tym hoœcie.
     /// </summary>
     private readonly Uri _almSearchBaseUri;
 
@@ -86,7 +120,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         _almSearchBaseUri = new Uri($"https://almsearch.dev.azure.com/{_organization}/");
     }
 
-    // â”€â”€ Work Items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Work Items ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     public async Task<WorkItemDetail> GetWorkItemAsync(int id, CancellationToken ct = default)
     {
@@ -119,13 +153,13 @@ public class AzureDevOpsService : IAzureDevOpsService
     public async Task<List<WorkItemComment>> GetWorkItemCommentsAsync(
         int workItemId, CancellationToken ct = default)
     {
-        // Komentarze nie sÄ… zwracane w $expand=all â€” wymagajÄ… osobnego endpointu (preview).
+        // Komentarze nie s¹ zwracane w $expand=all — wymagaj¹ osobnego endpointu (preview).
         var url = $"{_project}/_apis/wit/workItems/{workItemId}/comments" +
                   $"?api-version={_apiVersion}-preview.4";
 
         var response = await _http.GetAsync(url, ct);
 
-        // Brak komentarzy lub starszy projekt bez wsparcia â†’ traktujemy jako pustÄ… listÄ™
+        // Brak komentarzy lub starszy projekt bez wsparcia › traktujemy jako pust¹ listê
         if (response.StatusCode == HttpStatusCode.NotFound)
             return [];
 
@@ -148,7 +182,7 @@ public class AzureDevOpsService : IAzureDevOpsService
             .ToList() ?? [];
     }
 
-    // â”€â”€ WIQL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ WIQL ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     public async Task<List<int>> QueryWorkItemIdsAsync(string wiql, CancellationToken ct = default)
     {
@@ -194,7 +228,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         return result;
     }
 
-    // â”€â”€ Work Item Search (Lucene/BM25, almsearch.dev.azure.com) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Work Item Search (Lucene/BM25, almsearch.dev.azure.com) ¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     public async Task<List<WorkItemSearchHit>> SearchWorkItemsByKeywordsAsync(
         string searchText,
@@ -203,12 +237,12 @@ public class AzureDevOpsService : IAzureDevOpsService
         int skip = 0,
         CancellationToken ct = default)
     {
-        // Endpoint extension Search jest na osobnym hoÅ›cie â€” uÅ¼ywamy absolutnego URI.
+        // Endpoint extension Search jest na osobnym hoœcie — u¿ywamy absolutnego URI.
         var url = new Uri(
             _almSearchBaseUri,
             $"{_project}/_apis/search/workitemsearchresults?api-version={_apiVersion}");
 
-        // DevOps Search wymaga zawsze filtra System.TeamProject â€” bez niego API zwraca 400.
+        // DevOps Search wymaga zawsze filtra System.TeamProject — bez niego API zwraca 400.
         var effectiveFilters = filters is null
             ? new Dictionary<string, string[]>()
             : new Dictionary<string, string[]>(filters);
@@ -232,7 +266,7 @@ public class AzureDevOpsService : IAzureDevOpsService
 
         using var response = await _http.SendAsync(req, ct);
 
-        // Search extension moÅ¼e byÄ‡ wyÅ‚Ä…czone w organizacji on-prem â€” traktujemy jako brak wynikÃ³w.
+        // Search extension mo¿e byæ wy³¹czone w organizacji on-prem — traktujemy jako brak wyników.
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
             return [];
 
@@ -285,7 +319,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         };
     }
 
-    // â”€â”€ WIKI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ WIKI ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     public async Task<WikiPageDetail> GetWikiPageAsync(
         string wikiId, string pagePath, CancellationToken ct = default)
@@ -296,13 +330,13 @@ public class AzureDevOpsService : IAzureDevOpsService
 
         var response = await _http.GetAsync(url, ct);
 
-        // Strony-kontenery (foldery) mogÄ… nie mieÄ‡ treÅ›ci â†’ 404 to nie bÅ‚Ä…d
+        // Strony-kontenery (foldery) mog¹ nie mieæ treœci › 404 to nie b³¹d
         if (response.StatusCode == HttpStatusCode.NotFound)
             return new WikiPageDetail { Path = pagePath };
 
         response.EnsureSuccessStatusCode();
 
-        // ETag z nagÅ‚Ã³wka HTTP â€” unikalny token wersji strony
+        // ETag z nag³ówka HTTP — unikalny token wersji strony
         var eTag = response.Headers.ETag?.Tag;
         var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
 
@@ -344,18 +378,18 @@ public class AzureDevOpsService : IAzureDevOpsService
     {
         if (wiki.RepositoryId is null)
         {
-            // repositoryId nie zostaÅ‚o zwrÃ³cone przez API â€” fallback do peÅ‚nej synchronizacji
+            // repositoryId nie zosta³o zwrócone przez API — fallback do pe³nej synchronizacji
             return null;
         }
 
-        // Git Commits API z fromDate â€” zwraca commity od podanej daty
+        // Git Commits API z fromDate — zwraca commity od podanej daty
         var fromDate = Uri.EscapeDataString(since.UtcDateTime.ToString("o"));
         var url = $"{_project}/_apis/git/repositories/{wiki.RepositoryId}/commits" +
                   $"?searchCriteria.fromDate={fromDate}&searchCriteria.itemPath=/&$top=1000&api-version={_apiVersion}";
 
         var response = await _http.GetAsync(url, ct);
 
-        // Brak repozytorium lub brak uprawnieÅ„ â†’ fallback do peÅ‚nej synchronizacji
+        // Brak repozytorium lub brak uprawnieñ › fallback do pe³nej synchronizacji
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
             return null;
 
@@ -367,7 +401,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         if (commits.Count == 0)
             return [];
 
-        // Dla kaÅ¼dego commitu pobieramy zmienione pliki
+        // Dla ka¿dego commitu pobieramy zmienione pliki
         var changedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var commit in commits)
@@ -388,7 +422,7 @@ public class AzureDevOpsService : IAzureDevOpsService
                 var itemPath = change["item"]?["path"]?.ToString();
                 if (itemPath is null) continue;
 
-                // Pliki wiki majÄ… rozszerzenie .md; konwertujemy Å›cieÅ¼kÄ™ Git â†’ Å›cieÅ¼kÄ™ wiki
+                // Pliki wiki maj¹ rozszerzenie .md; konwertujemy œcie¿kê Git › œcie¿kê wiki
                 // (usuwamy mappedPath prefix i rozszerzenie .md)
                 var wikiPath = GitPathToWikiPath(itemPath, wiki.MappedPath);
                 if (wikiPath is not null)
@@ -400,8 +434,8 @@ public class AzureDevOpsService : IAzureDevOpsService
     }
 
     /// <summary>
-    /// Konwertuje Å›cieÅ¼kÄ™ pliku Git na Å›cieÅ¼kÄ™ wiki.
-    /// Np. "/wiki/Architecture/Overview.md" (mappedPath="/wiki") â†’ "/Architecture/Overview".
+    /// Konwertuje œcie¿kê pliku Git na œcie¿kê wiki.
+    /// Np. "/wiki/Architecture/Overview.md" (mappedPath="/wiki") › "/Architecture/Overview".
     /// </summary>
     private static string? GitPathToWikiPath(string gitPath, string? mappedPath)
     {
@@ -413,14 +447,14 @@ public class AzureDevOpsService : IAzureDevOpsService
             ? gitPath[prefix.Length..]
             : gitPath;
 
-        // UsuÅ„ rozszerzenie .md i zamieÅ„ spacje-jako-myÅ›lniki jeÅ›li DevOps tak koduje
-        var wikiPath = relative[..^3]; // usuÅ„ ".md"
+        // Usuñ rozszerzenie .md i zamieñ spacje-jako-myœlniki jeœli DevOps tak koduje
+        var wikiPath = relative[..^3]; // usuñ ".md"
         return string.IsNullOrEmpty(wikiPath) ? null : wikiPath;
     }
 
     public async Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default)
     {
-        // recursionLevel=full zwraca peÅ‚ne drzewo stron w jednym Å¼Ä…daniu
+        // recursionLevel=full zwraca pe³ne drzewo stron w jednym ¿¹daniu
         var url = $"{_project}/_apis/wiki/wikis/{wikiId}/pages" +
                   $"?path=/&recursionLevel=full&includeContent=false&api-version={_apiVersion}";
 
@@ -434,14 +468,14 @@ public class AzureDevOpsService : IAzureDevOpsService
         return paths;
     }
 
-    /// <summary>Rekurencyjnie spÅ‚aszcza drzewo stron wiki do listy Å›cieÅ¼ek.</summary>
+    /// <summary>Rekurencyjnie sp³aszcza drzewo stron wiki do listy œcie¿ek.</summary>
     private static void CollectPagePaths(JsonNode? node, List<string> paths)
     {
         if (node is null) return;
 
         var path = node["path"]?.GetValue<string>();
 
-        // Pomijamy root "/" â€” to wirtualny kontener, nie strona z treÅ›ciÄ…
+        // Pomijamy root "/" — to wirtualny kontener, nie strona z treœci¹
         if (path is not null && path != "/")
             paths.Add(path);
 
@@ -452,7 +486,7 @@ public class AzureDevOpsService : IAzureDevOpsService
             CollectPagePaths(subPage, paths);
     }
 
-    // â”€â”€ Mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Mapping ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     private WorkItemDetail MapWorkItemDetail(JsonObject json)
     {
@@ -493,5 +527,251 @@ public class AzureDevOpsService : IAzureDevOpsService
         if (url is null) return null;
         var parts = url.Split('/');
         return int.TryParse(parts.LastOrDefault(), out var id) ? id : null;
+    }
+
+    // ?? Repos / Pull Requests ???????????????????????????????????????????????
+
+    public async Task<List<GitRepositoryInfo>> GetRepositoriesAsync(CancellationToken ct = default)
+    {
+        var url = $"{_project}/_apis/git/repositories?api-version={_apiVersion}";
+        var response = await _http.GetAsync(url, ct);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+        return json?["value"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(r => new GitRepositoryInfo
+            {
+                Id = r["id"]?.ToString(),
+                Name = r["name"]?.ToString(),
+                DefaultBranch = r["defaultBranch"]?.ToString(),
+                Url = r["url"]?.ToString(),
+                WebUrl = r["webUrl"]?.ToString()
+            })
+            .Where(r => r.Id is not null)
+            .ToList() ?? [];
+    }
+
+    public async Task<PullRequestDetail?> GetPullRequestAsync(
+        string repositoryId, int pullRequestId, CancellationToken ct = default)
+    {
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}" +
+                  $"?api-version={_apiVersion}";
+        var response = await _http.GetAsync(url, ct);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        var pr = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+        if (pr is null) return null;
+
+        return new PullRequestDetail
+        {
+            PullRequestId = pr["pullRequestId"]?.GetValue<int>() ?? pullRequestId,
+            RepositoryId = pr["repository"]?["id"]?.ToString(),
+            RepositoryName = pr["repository"]?["name"]?.ToString(),
+            Title = pr["title"]?.ToString(),
+            Description = pr["description"]?.ToString(),
+            SourceBranch = pr["sourceRefName"]?.ToString(),
+            TargetBranch = pr["targetRefName"]?.ToString(),
+            Status = pr["status"]?.ToString(),
+            MergeStatus = pr["mergeStatus"]?.ToString(),
+            CreatedBy = pr["createdBy"]?["displayName"]?.ToString(),
+            CreationDate = pr["creationDate"]?.GetValue<DateTime?>(),
+            ClosedDate = pr["closedDate"]?.GetValue<DateTime?>(),
+            LastMergeCommitId = pr["lastMergeCommit"]?["commitId"]?.ToString(),
+            LastMergeSourceCommitId = pr["lastMergeSourceCommit"]?["commitId"]?.ToString(),
+            LastMergeTargetCommitId = pr["lastMergeTargetCommit"]?["commitId"]?.ToString(),
+            Url = pr["url"]?.ToString(),
+            WebUrl = $"https://dev.azure.com/{_organization}/{_project}/_git/{pr["repository"]?["name"]}/pullrequest/{pullRequestId}"
+        };
+    }
+
+    public async Task<List<PullRequestChange>> GetPullRequestChangesAsync(
+        string repositoryId, int pullRequestId, CancellationToken ct = default)
+    {
+        // Iteracje PR — bierzemy najnowsz¹ i z niej listê zmian (PR Changes API).
+        var iterUrl = $"{_project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/iterations" +
+                      $"?api-version={_apiVersion}";
+        var iterResp = await _http.GetAsync(iterUrl, ct);
+
+        if (iterResp.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        iterResp.EnsureSuccessStatusCode();
+        var iterJson = await iterResp.Content.ReadFromJsonAsync<JsonObject>(ct);
+        var iterations = iterJson?["value"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
+        if (iterations.Count == 0) return [];
+
+        var latestId = iterations.Last()["id"]?.GetValue<int>() ?? 1;
+
+        var changesUrl = $"{_project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/iterations/{latestId}/changes" +
+                         $"?$top=2000&api-version={_apiVersion}";
+        var changesResp = await _http.GetAsync(changesUrl, ct);
+        changesResp.EnsureSuccessStatusCode();
+
+        var changesJson = await changesResp.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return changesJson?["changeEntries"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(c => new PullRequestChange
+            {
+                Path = c["item"]?["path"]?.ToString(),
+                ChangeType = c["changeType"]?.ToString(),
+                OriginalPath = c["originalPath"]?.ToString()
+            })
+            .Where(c => c.Path is not null)
+            .ToList() ?? [];
+    }
+
+    public async Task<List<int>> GetPullRequestWorkItemIdsAsync(
+        string repositoryId, int pullRequestId, CancellationToken ct = default)
+    {
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/workitems" +
+                  $"?api-version={_apiVersion}";
+        var response = await _http.GetAsync(url, ct);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return json?["value"]?.AsArray()
+            .Select(w => int.TryParse(w?["id"]?.ToString(), out var id) ? id : 0)
+            .Where(id => id > 0)
+            .ToList() ?? [];
+    }
+
+    public async Task<string?> GetFileContentAsync(
+        string repositoryId, string path, string? commitId = null, CancellationToken ct = default)
+    {
+        // includeContent=true zwraca treœæ w JSON-ie. Dla wersji binarnej trzeba by u¿yæ
+        // $format=octetStream — tu zak³adamy pliki tekstowe (kod, markdown).
+        var versionParam = commitId is null
+            ? string.Empty
+            : $"&versionDescriptor.version={commitId}&versionDescriptor.versionType=commit";
+
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/items" +
+                  $"?path={Uri.EscapeDataString(path)}&includeContent=true{versionParam}" +
+                  $"&api-version={_apiVersion}";
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Accept.Clear();
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        using var response = await _http.SendAsync(req, ct);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+        return json?["content"]?.ToString();
+    }
+
+    public async Task<List<GitItem>> GetRepositoryItemsAsync(
+        string repositoryId, string path = "/", bool recursive = false,
+        string? commitId = null, CancellationToken ct = default)
+    {
+        var recursionLevel = recursive ? "full" : "oneLevel";
+        var versionParam = commitId is null
+            ? string.Empty
+            : $"&versionDescriptor.version={commitId}&versionDescriptor.versionType=commit";
+
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/items" +
+                  $"?scopePath={Uri.EscapeDataString(path)}&recursionLevel={recursionLevel}" +
+                  $"&includeContentMetadata=false{versionParam}&api-version={_apiVersion}";
+
+        var response = await _http.GetAsync(url, ct);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return json?["value"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(i => new GitItem
+            {
+                Path = i["path"]?.ToString(),
+                GitObjectType = i["gitObjectType"]?.ToString(),
+                IsFolder = i["isFolder"]?.GetValue<bool>() ?? false,
+                ObjectId = i["objectId"]?.ToString(),
+                Url = i["url"]?.ToString()
+            })
+            .Where(i => i.Path is not null)
+            .ToList() ?? [];
+    }
+
+    // ?? WIKI write ??????????????????????????????????????????????????????????
+
+    public async Task<WikiPageWriteResult> CreateOrUpdateWikiPageAsync(
+        string wikiId, string pagePath, string contentMarkdown,
+        string? eTag = null, CancellationToken ct = default)
+    {
+        // PUT /wiki/wikis/{wikiId}/pages?path={path} z opcjonalnym If-Match (ETag).
+        // Brak If-Match ? tworzy now¹ stronê (zwraca 201). Gdy strona istnieje:
+        // wymagany If-Match. Jeœli ETag null a strona istnieje, najpierw pobieramy
+        // aktualny ETag i ponawiamy zapis (race-free best-effort).
+        if (eTag is null)
+        {
+            var current = await GetWikiPageAsync(wikiId, pagePath, ct);
+            if (current.Id is not null)
+                eTag = current.ETag;
+        }
+
+        var result = await PutWikiPageAsync(wikiId, pagePath, contentMarkdown, eTag, ct);
+
+        // Konflikt ETagu (412 Precondition Failed) — strona zmieni³a siê miêdzy GET a PUT.
+        // Pobieramy œwie¿y ETag i ponawiamy raz.
+        if (result is null)
+        {
+            var refreshed = await GetWikiPageAsync(wikiId, pagePath, ct);
+            result = await PutWikiPageAsync(wikiId, pagePath, contentMarkdown, refreshed.ETag, ct)
+                ?? throw new InvalidOperationException(
+                    $"Failed to write wiki page '{pagePath}' after ETag refresh.");
+        }
+
+        return result;
+    }
+
+    private async Task<WikiPageWriteResult?> PutWikiPageAsync(
+        string wikiId, string pagePath, string contentMarkdown, string? eTag, CancellationToken ct)
+    {
+        var encodedPath = Uri.EscapeDataString(pagePath);
+        var url = $"{_project}/_apis/wiki/wikis/{wikiId}/pages" +
+                  $"?path={encodedPath}&api-version={_apiVersion}";
+
+        var body = new { content = contentMarkdown };
+        using var req = new HttpRequestMessage(HttpMethod.Put, url)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json")
+        };
+
+        if (!string.IsNullOrEmpty(eTag))
+            req.Headers.TryAddWithoutValidation("If-Match", eTag);
+
+        using var response = await _http.SendAsync(req, ct);
+
+        // 412 = niezgodny ETag — sygna³ do retry z odœwie¿onym ETagiem.
+        if (response.StatusCode == HttpStatusCode.PreconditionFailed)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+
+        var newEtag = response.Headers.ETag?.Tag;
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return new WikiPageWriteResult
+        {
+            Path = json?["path"]?.ToString() ?? pagePath,
+            ETag = newEtag,
+            RemoteUrl = json?["remoteUrl"]?.ToString(),
+            Created = response.StatusCode == HttpStatusCode.Created
+        };
     }
 }

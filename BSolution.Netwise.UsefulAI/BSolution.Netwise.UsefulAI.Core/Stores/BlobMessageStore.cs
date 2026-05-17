@@ -1,9 +1,8 @@
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
+namespace BSolution.Netwise.UsefulAI.Core.Stores;
 
 /// <summary>
 /// Serwis do przechowywania dużych payloadów wiadomości w Blob Storage (Claim-Check Pattern).
@@ -66,44 +65,4 @@ public class BlobMessageStore : IBlobMessageStore
         if (Interlocked.CompareExchange(ref _containerReady, 1, 0) == 0)
             await _container.CreateIfNotExistsAsync(cancellationToken: ct);
     }
-}
-
-/// <summary>
-/// Generuje ścieżki blobów wg konwencji:
-/// <c>{subfolder}/{yyyy-MM-dd}/{identity}_{guid8}.json</c>
-///
-/// Subfoldery odpowiadają nazwom kolejek Service Bus do których trafia dana wiadomość.
-/// Guid8 (8 hex) = unikatowość przy wielokrotnych re-indeksowaniach tej samej treści.
-/// </summary>
-public static class BlobPaths
-{
-    private static string Today => DateTime.UtcNow.ToString("yyyy-MM-dd");
-    private static string Uid   => Guid.NewGuid().ToString("N")[..8];
-
-    /// <summary>Blob dla <c>WorkItemDetailMessage</c> na kolejce <c>workitem-details</c>.</summary>
-    public static string WorkItemDetail(int wiId) =>
-        $"workitem-details/{Today}/{wiId}_{Uid}.json";
-
-    /// <summary>Blob dla listy wszystkich chunków <c>WorkItemIndexDocument</c> jednego WI na kolejce <c>workitem-documents</c>.</summary>
-    public static string WorkItemDocument(int wiId) =>
-        $"workitem-documents/{Today}/{wiId}_{Uid}.json";
-
-    /// <summary>Blob dla <c>WikiPageContentMessage</c> na kolejce <c>wiki-pages</c>.</summary>
-    public static string WikiPage(string wikiId, string path) =>
-        $"wiki-pages/{Today}/{Slug(wikiId)}-{Slug(path)}_{Uid}.json";
-
-    /// <summary>Blob dla listy wszystkich chunków <c>WikiIndexDocument</c> jednej strony na kolejce <c>wiki-documents</c>.</summary>
-    public static string WikiDocument(string wikiId, string path) =>
-        $"wiki-documents/{Today}/{Slug(wikiId)}-{Slug(path)}_{Uid}.json";
-
-    /// <summary>Deterministyczna nazwa bloba raportu Impact Analysis (markdown) wewnątrz kontenera <c>reports</c>.</summary>
-    public static string Report(int workItemId) =>
-        $"{workItemId}.md";
-
-    // Sanityzacja ścieżek WIKI: / → -, tylko [a-zA-Z0-9-], max 50 znaków.
-    private static string Slug(string s) =>
-        Regex.Replace(s.Replace('/', '-').Replace('_', '-').TrimStart('-'), @"[^a-zA-Z0-9\-]", "")
-             is { Length: > 0 } slug
-             ? slug[..Math.Min(slug.Length, 50)]
-             : "x";
 }

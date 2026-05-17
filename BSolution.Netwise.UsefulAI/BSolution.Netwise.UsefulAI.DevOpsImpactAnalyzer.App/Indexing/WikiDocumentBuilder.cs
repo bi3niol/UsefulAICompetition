@@ -1,5 +1,6 @@
-using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
-using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Shared;
+using BSolution.Netwise.UsefulAI.Core.Extensions;
+using BSolution.Netwise.UsefulAI.Core.Models;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;

@@ -2,7 +2,7 @@ using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
 
-namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Models;
+namespace BSolution.Netwise.UsefulAI.Core.Models;
 
 /// <summary>
 /// Generyczny wiersz tabeli konfiguracyjnej <c>Settings</c> w stylu key-value.

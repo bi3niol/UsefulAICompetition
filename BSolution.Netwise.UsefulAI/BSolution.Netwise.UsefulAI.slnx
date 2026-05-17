@@ -2,7 +2,9 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Project Path="BSolution.Netwise.UsefulAI.Core/BSolution.Netwise.UsefulAI.Core.csproj" />
   <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.csproj" />
+  <Project Path="BSolution.Netwise.UsefulAI.WikiDocGenerator.App/BSolution.Netwise.UsefulAI.WikiDocGenerator.App.csproj" />
   <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension.esproj">
     <Build />
     <Deploy />
