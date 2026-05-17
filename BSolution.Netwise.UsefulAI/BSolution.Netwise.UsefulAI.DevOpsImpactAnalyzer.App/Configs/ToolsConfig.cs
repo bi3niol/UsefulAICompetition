@@ -1,15 +1,24 @@
 using BSolution.Netwise.UsefulAI.Core.Configuration;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Indexing;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Stores;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Sender;
 using BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Writer;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Configs;
 
 public static class ToolsConfig
 {
+    // Pełny zbiór typów WI do indeksacji semantycznej — od Epica po Task'a.
+    private static readonly string[] IndexableWorkItemTypes =
+    [
+        "User Story", "Product Backlog Item", "Bug",
+        "Task", "Epic", "Feature", "Requirement"
+    ];
+
     public static IServiceCollection AddImpactAnalyzerTools(
         this IServiceCollection services)
     {
@@ -24,8 +33,13 @@ public static class ToolsConfig
         // Indexing — SearchIndexManager uruchamia się jako hosted service przy starcie
         services.AddHostedService<SearchIndexManager>();
 
-        // Pipeline indeksacji work itemów (Service Bus) — 3 niezależne usługi po jednej per etap
-        services.AddSingleton<IWorkItemQueryService, WorkItemQueryService>();
+        // Pipeline indeksacji work itemów (Service Bus) — 3 niezależne usługi po jednej per etap.
+        // WorkItemQueryService jest wspólny w Core; tu wstrzykujemy listę typów do filtrowania.
+        services.AddSingleton<IWorkItemQueryService>(sp => new WorkItemQueryService(
+            sp.GetRequiredService<IAzureDevOpsService>(),
+            sp.GetRequiredService<ILogger<WorkItemQueryService>>(),
+            IndexableWorkItemTypes,
+            logTag: "WI-INDEX-QUERY"));
         services.AddSingleton<IWorkItemDocumentBuilder, WorkItemDocumentBuilder>();
         services.AddSingleton<IWorkItemSearchUploader, WorkItemSearchUploader>();
 

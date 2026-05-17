@@ -18,12 +18,13 @@ public record PullRequestEvent(
 );
 
 /// <summary>
-/// Wejście do pipeline'u uruchamianego ręcznie — generuje stronę wiki dla danego
-/// work itemu (zwykle Feature / PBI), bazując na powiązanym kodzie i opisach.
+/// Wejście do pipeline'u uruchamianego ręcznie — bierze listę work itemów
+/// (Feature / User Story / PBI) i AKTUALIZUJE istniejące strony wiki lub
+/// TWORZY nowe, jeśli żadna istniejąca strona tematycznie nie pasuje.
+/// Decyzja "update vs create" należy do Researchera, nie do wywołującego.
 /// </summary>
-public record WikiGenerationRequest(
-    int WorkItemId,
-    string? PreferredPagePath,
+public record WorkItemsWikiRefreshRequest(
+    IReadOnlyList<int> WorkItemIds,
     string? RepositoryId
 );
 

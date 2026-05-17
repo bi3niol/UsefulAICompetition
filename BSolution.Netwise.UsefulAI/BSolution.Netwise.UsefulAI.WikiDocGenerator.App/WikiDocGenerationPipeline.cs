@@ -71,19 +71,34 @@ public class WikiDocGenerationPipeline
         return await RunInternalAsync(seedPrompt, ct);
     }
 
-    public async Task<string> RunForWorkItemAsync(WikiGenerationRequest request, CancellationToken ct = default)
+    public async Task<string> RunForWorkItemsAsync(WorkItemsWikiRefreshRequest request, CancellationToken ct = default)
     {
         _logger.LogInformation(
-            "[WIKI-PIPELINE] Starting wiki generation for WI#{Id}", request.WorkItemId);
+            "[WIKI-PIPELINE] Starting wiki refresh for {Count} work item(s): [{Ids}]",
+            request.WorkItemIds.Count, string.Join(", ", request.WorkItemIds));
 
         var seedPrompt = $"""
-            Source: WORK_ITEM
-            WorkItemId: {request.WorkItemId}
+            Source: WORK_ITEMS
+            WorkItemIds: [{string.Join(", ", request.WorkItemIds)}]
             RepositoryId: {request.RepositoryId}
-            PreferredPagePath: {request.PreferredPagePath}
 
-            Research which wiki page should document this work item (and any
-            related code), then create or update it.
+            For EACH work item:
+              1. Fetch its details (description, acceptance criteria, comments) via
+                 GetWorkItemDetails() to understand the feature intent.
+              2. Decide whether the work item describes the SAME topic as another
+                 already-processed work item — group such items together so they
+                 contribute to the SAME wiki page instead of producing duplicates.
+
+            Then for each topic (group of related work items):
+              • Search existing wiki pages with ListWikiPages() and pick the page
+                whose path / title best matches the topic. Read its current content
+                with GetWikiPage() and carry over the ETag.
+              • Only when NO existing page reasonably covers the topic, propose a
+                NEW page path under a sensible hierarchy.
+              • If a repository id is provided, optionally read a few representative
+                files with ReadRepositoryFile() to make the documentation concrete.
+
+            Output the standard WikiResearchFindings JSON.
         """;
 
         return await RunInternalAsync(seedPrompt, ct);

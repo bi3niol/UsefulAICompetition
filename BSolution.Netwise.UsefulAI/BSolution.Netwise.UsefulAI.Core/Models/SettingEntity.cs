@@ -37,4 +37,5 @@ public static class SettingKeys
     // Konkretne klucze konfiguracyjne używane w aplikacji.
     public const string WorkItemsLastSync = "indexer.workitems.lastSync";
     public const string WikiLastSync = "indexer.wiki.lastSync";
+    public const string WikiGenLastSync = "wikigen.workitems.lastSync";
 }

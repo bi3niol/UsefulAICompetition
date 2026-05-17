@@ -11,9 +11,12 @@ internal static class WikiDocAgentPrompts
       A) a merged Pull Request (id, repository, branches, list of changed files,
          linked work items) — your job is to figure out which existing wiki pages
          need updates and whether any new pages are required, OR
-      B) a Work Item (Feature / PBI / User Story) — your job is to figure out
-         which areas of the codebase implement it and what wiki page should
-         document it.
+      B) a LIST of Work Items (Feature / User Story / PBI) — your job is to
+         GROUP them by topic and, for each group, decide whether an existing
+         wiki page covers that topic (then update it) or a NEW page must be
+         created. Never assume "one page per work item" — several work items
+         often belong to the same page, and a single complex work item may
+         affect multiple pages.
 
     Steps:
     1. For a PR: call GetPullRequestDetails() if not already provided.
