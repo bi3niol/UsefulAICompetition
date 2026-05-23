@@ -8,7 +8,9 @@ public class ResearchTools(
     ReadRepositoryFileTool readFile,
     ListWikiPagesTool listWiki,
     GetWikiPageTool getWiki,
-    GetWorkItemDetailsTool getWorkItem)
+    GetWorkItemDetailsTool getWorkItem,
+    ListCodeRepositoriesTool listCodeRepos,
+    ListRepositoryFilesTool listRepoFiles)
 {
     public IList<AITool> GetAll() =>
     [
@@ -17,6 +19,8 @@ public class ResearchTools(
         AIFunctionFactory.Create(readFile.ReadRepositoryFileAsync),
         AIFunctionFactory.Create(listWiki.ListWikiPagesAsync),
         AIFunctionFactory.Create(getWiki.GetWikiPageAsync),
-        AIFunctionFactory.Create(getWorkItem.GetWorkItemDetailsAsync)
+        AIFunctionFactory.Create(getWorkItem.GetWorkItemDetailsAsync),
+        AIFunctionFactory.Create(listCodeRepos.ListCodeRepositoriesAsync),
+        AIFunctionFactory.Create(listRepoFiles.ListRepositoryFilesAsync)
     ];
 }

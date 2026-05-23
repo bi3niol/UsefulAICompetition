@@ -28,6 +28,29 @@ public record WorkItemsWikiRefreshRequest(
     string? RepositoryId
 );
 
+/// <summary>
+/// Wejście do pipeline'u dla skanu kodu źródłowego. Researcher otrzymuje
+/// listę zmienionych plików (lub pełne drzewo przy pierwszym skanie) z
+/// JEDNEGO repo i jednej, narzuconej przez konfig, gałęzi — i sam decyduje
+/// które strony wiki powstaną / zostaną zaktualizowane.
+/// </summary>
+public record CodeScanRequest(
+    string RepositoryId,
+    string RepositoryName,
+    string Branch,
+    string TargetCommitSha,
+    string? BaseCommitSha,
+    bool IsFullScan,
+    IReadOnlyList<CodeScanFile> Files
+);
+
+/// <summary>Pojedynczy plik objęty skanem kodu (po filtrach).</summary>
+public record CodeScanFile(
+    string Path,
+    string ChangeType,
+    long? SizeBytes
+);
+
 /// <summary>Strukturalny output Researchera dla generatora wiki.</summary>
 public record WikiResearchFindings(
     string Scope,

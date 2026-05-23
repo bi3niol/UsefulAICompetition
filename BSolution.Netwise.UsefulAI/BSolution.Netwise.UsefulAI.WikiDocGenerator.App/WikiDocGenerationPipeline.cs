@@ -53,21 +53,7 @@ public class WikiDocGenerationPipeline
             "[WIKI-PIPELINE] Starting wiki generation for PR#{Id} in {Repo} ({Source} -> {Target})",
             pr.PullRequestId, pr.RepositoryName, pr.SourceBranch, pr.TargetBranch);
 
-        var seedPrompt = $"""
-            Source: PULL_REQUEST
-            RepositoryId: {pr.RepositoryId}
-            RepositoryName: {pr.RepositoryName}
-            PullRequestId: {pr.PullRequestId}
-            Title: {pr.Title}
-            Description: {pr.Description}
-            SourceBranch: {pr.SourceBranch}
-            TargetBranch: {pr.TargetBranch}
-            MergeCommitId: {pr.MergeCommitId}
-            LinkedWorkItemIds: [{string.Join(", ", pr.LinkedWorkItemIds)}]
-
-            Research which wiki pages need to be created or updated to reflect this PR.
-        """;
-
+        var seedPrompt = BuildSeedPromptForPullRequest(pr);
         return await RunInternalAsync(seedPrompt, ct);
     }
 
@@ -77,30 +63,7 @@ public class WikiDocGenerationPipeline
             "[WIKI-PIPELINE] Starting wiki refresh for {Count} work item(s): [{Ids}]",
             request.WorkItemIds.Count, string.Join(", ", request.WorkItemIds));
 
-        var seedPrompt = $"""
-            Source: WORK_ITEMS
-            WorkItemIds: [{string.Join(", ", request.WorkItemIds)}]
-            RepositoryId: {request.RepositoryId}
-
-            For EACH work item:
-              1. Fetch its details (description, acceptance criteria, comments) via
-                 GetWorkItemDetails() to understand the feature intent.
-              2. Decide whether the work item describes the SAME topic as another
-                 already-processed work item — group such items together so they
-                 contribute to the SAME wiki page instead of producing duplicates.
-
-            Then for each topic (group of related work items):
-              • Search existing wiki pages with ListWikiPages() and pick the page
-                whose path / title best matches the topic. Read its current content
-                with GetWikiPage() and carry over the ETag.
-              • Only when NO existing page reasonably covers the topic, propose a
-                NEW page path under a sensible hierarchy.
-              • If a repository id is provided, optionally read a few representative
-                files with ReadRepositoryFile() to make the documentation concrete.
-
-            Output the standard WikiResearchFindings JSON.
-        """;
-
+        var seedPrompt = BuildSeedPromptForWorkItems(request);
         return await RunInternalAsync(seedPrompt, ct);
     }
 
@@ -109,9 +72,7 @@ public class WikiDocGenerationPipeline
     private async Task<string> RunInternalAsync(string seedPrompt, CancellationToken ct)
     {
         var findings = await RunResearcherAsync(seedPrompt);
-
         var draft = await RunWriterEditorLoopAsync(findings);
-
         await RunSenderAsync(draft);
 
         _logger.LogInformation(
@@ -125,9 +86,51 @@ public class WikiDocGenerationPipeline
         });
     }
 
-    // ── KROK 1: Researcher ─────────────────────────────────────────────────
+    // ── Public stage methods (used by stage Functions) ──────────────────────
 
-    private async Task<WikiResearchFindings> RunResearcherAsync(string seedPrompt)
+    /// <summary>Stage 2: Build seed prompt from message data, run Researcher, return findings.</summary>
+    public string BuildSeedPromptForPullRequest(PullRequestEvent pr) => $"""
+        Source: PULL_REQUEST
+        RepositoryId: {pr.RepositoryId}
+        RepositoryName: {pr.RepositoryName}
+        PullRequestId: {pr.PullRequestId}
+        Title: {pr.Title}
+        Description: {pr.Description}
+        SourceBranch: {pr.SourceBranch}
+        TargetBranch: {pr.TargetBranch}
+        MergeCommitId: {pr.MergeCommitId}
+        LinkedWorkItemIds: [{string.Join(", ", pr.LinkedWorkItemIds)}]
+
+        Research which wiki pages need to be created or updated to reflect this PR.
+    """;
+
+    /// <summary>Stage 2: Build seed prompt for work items batch.</summary>
+    public string BuildSeedPromptForWorkItems(WorkItemsWikiRefreshRequest request) => $"""
+        Source: WORK_ITEMS
+        WorkItemIds: [{string.Join(", ", request.WorkItemIds)}]
+        RepositoryId: {request.RepositoryId}
+
+        For EACH work item:
+          1. Fetch its details (description, acceptance criteria, comments) via
+             GetWorkItemDetails() to understand the feature intent.
+          2. Decide whether the work item describes the SAME topic as another
+             already-processed work item — group such items together so they
+             contribute to the SAME wiki page instead of producing duplicates.
+
+        Then for each topic (group of related work items):
+          • Search existing wiki pages with ListWikiPages() and pick the page
+            whose path / title best matches the topic. Read its current content
+            with GetWikiPage() and carry over the ETag.
+          • Only when NO existing page reasonably covers the topic, propose a
+            NEW page path under a sensible hierarchy.
+          • If a repository id is provided, optionally read a few representative
+            files with ReadRepositoryFile() to make the documentation concrete.
+
+        Output the standard WikiResearchFindings JSON.
+    """;
+
+    /// <summary>Stage 2: Run Researcher agent with given seed prompt.</summary>
+    public async Task<WikiResearchFindings> RunResearcherAsync(string seedPrompt)
     {
         _logger.LogInformation("[RESEARCHER] Investigating code, work items and existing wiki...");
 
@@ -143,9 +146,8 @@ public class WikiDocGenerationPipeline
         return result.Result;
     }
 
-    // ── KROK 2 + 3: Writer / Editor loop ───────────────────────────────────
-
-    private async Task<WikiDraft> RunWriterEditorLoopAsync(WikiResearchFindings findings)
+    /// <summary>Stage 3: Run Writer + Editor loop, return approved draft.</summary>
+    public async Task<WikiDraft> RunWriterEditorLoopAsync(WikiResearchFindings findings)
     {
         var retries = 0;
         WikiDraft draft;
@@ -221,7 +223,8 @@ public class WikiDocGenerationPipeline
 
     // ── KROK 4: Sender ─────────────────────────────────────────────────────
 
-    private async Task RunSenderAsync(WikiDraft draft)
+    /// <summary>Stage 4: Apply wiki edits using Sender agent.</summary>
+    public async Task RunSenderAsync(WikiDraft draft)
     {
         if (draft.Edits.Count == 0)
         {

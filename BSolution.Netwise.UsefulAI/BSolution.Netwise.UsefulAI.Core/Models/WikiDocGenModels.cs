@@ -53,6 +53,22 @@ public class GitItem
     public bool IsFolder { get; set; }
     public string? ObjectId { get; set; }
     public string? Url { get; set; }
+
+    /// <summary>Rozmiar pliku w bajtach (gdy znany; foldery: 0).</summary>
+    public long? Size { get; set; }
+}
+
+/// <summary>
+/// Pojedyncza zmiana plikowa wynikająca z porównania dwóch commitów
+/// (Git diffs API). Używana do inkrementalnego skanu kodu w WikiDocGeneratorze.
+/// </summary>
+public class RepoFileChange
+{
+    public string? Path { get; set; }
+    public string? OriginalPath { get; set; }
+
+    /// <summary>add / edit / delete / rename / sourceRename — wartości z Azure DevOps Git API.</summary>
+    public string? ChangeType { get; set; }
 }
 
 /// <summary>Wynik operacji zapisu/aktualizacji strony wiki.</summary>

@@ -38,4 +38,12 @@ public static class SettingKeys
     public const string WorkItemsLastSync = "indexer.workitems.lastSync";
     public const string WikiLastSync = "indexer.wiki.lastSync";
     public const string WikiGenLastSync = "wikigen.workitems.lastSync";
+
+    /// <summary>
+    /// Buduje klucz watermarka dla skanu kodu per repozytorium+gałąź.
+    /// Format: <c>wikigen.code.{repoId}.{branch}.lastSha</c>. Watermark
+    /// przechowuje SHA ostatniego scenowanego commitu na tej gałęzi.
+    /// </summary>
+    public static string WikiGenCodeLastSha(string repoId, string branch) =>
+        $"wikigen.code.{repoId}.{branch}.lastSha";
 }

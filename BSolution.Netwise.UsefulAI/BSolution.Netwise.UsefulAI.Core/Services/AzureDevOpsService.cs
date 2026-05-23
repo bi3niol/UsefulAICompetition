@@ -70,8 +70,35 @@ public interface IAzureDevOpsService
     /// <summary>Pobiera zawartoœæ pliku z repo na konkretnym commicie (null jeœli plik usuniêty/nieobecny).</summary>
     Task<string?> GetFileContentAsync(string repositoryId, string path, string? commitId = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Pobiera zawartoœæ pliku z repo z konkretnej GA£ÊZI (HEAD) — u¿ywane przez skan kodu,
+    /// który zawsze pracuje na ustalonej w konfigu ga³êzi (np. <c>main</c>).
+    /// Zwraca <c>null</c> gdy plik nie istnieje na danej ga³êzi.
+    /// </summary>
+    Task<string?> GetFileContentOnBranchAsync(string repositoryId, string path, string branch, CancellationToken ct = default);
+
     /// <summary>Lista plików/folderów w repo na zadanej œcie¿ce (rekursywnie jeœli <paramref name="recursive"/>).</summary>
     Task<List<GitItem>> GetRepositoryItemsAsync(string repositoryId, string path = "/", bool recursive = false, string? commitId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lista plików/folderów w repo z konkretnej GA£ÊZI (HEAD). Wersja u¿ywana przez skan kodu —
+    /// nie wymaga znajomoœci SHA commit-a, czyta zawsze szczyt zadanej ga³êzi.
+    /// </summary>
+    Task<List<GitItem>> GetRepositoryItemsOnBranchAsync(string repositoryId, string branch, string path = "/", bool recursive = true, CancellationToken ct = default);
+
+    /// <summary>
+    /// Zwraca SHA ostatniego commitu na zadanej ga³êzi. Pos³uguje siê <c>git/refs</c>
+    /// (filtr <c>filter=heads/{branch}</c>). Zwraca <c>null</c> jeœli ga³¹Ÿ nie istnieje.
+    /// </summary>
+    Task<string?> GetLatestCommitShaAsync(string repositoryId, string branch, CancellationToken ct = default);
+
+    /// <summary>
+    /// Zwraca listê zmian plikowych miêdzy dwoma commitami (<paramref name="baseSha"/> ? <paramref name="targetSha"/>).
+    /// U¿ywa Git <c>diffs/commits</c> API. Gdy <paramref name="baseSha"/> jest <c>null</c> zwraca <c>null</c>
+    /// — to sygna³ dla wywo³uj¹cego, ¿eby zrobiæ pe³ny skan drzewa.
+    /// </summary>
+    Task<List<RepoFileChange>?> GetChangesBetweenCommitsAsync(
+        string repositoryId, string? baseSha, string targetSha, CancellationToken ct = default);
 
     // ?? WIKI write ??????????????????????????????????????????????????????????
 
@@ -704,6 +731,127 @@ public class AzureDevOpsService : IAzureDevOpsService
                 Url = i["url"]?.ToString()
             })
             .Where(i => i.Path is not null)
+            .ToList() ?? [];
+    }
+
+    public async Task<string?> GetFileContentOnBranchAsync(
+        string repositoryId, string path, string branch, CancellationToken ct = default)
+    {
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/items" +
+                  $"?path={Uri.EscapeDataString(path)}&includeContent=true" +
+                  $"&versionDescriptor.version={Uri.EscapeDataString(branch)}" +
+                  $"&versionDescriptor.versionType=branch" +
+                  $"&api-version={_apiVersion}";
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Accept.Clear();
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        using var response = await _http.SendAsync(req, ct);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+        return json?["content"]?.ToString();
+    }
+
+    public async Task<List<GitItem>> GetRepositoryItemsOnBranchAsync(
+        string repositoryId, string branch, string path = "/", bool recursive = true,
+        CancellationToken ct = default)
+    {
+        var recursionLevel = recursive ? "full" : "oneLevel";
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/items" +
+                  $"?scopePath={Uri.EscapeDataString(path)}&recursionLevel={recursionLevel}" +
+                  $"&includeContentMetadata=true" +
+                  $"&versionDescriptor.version={Uri.EscapeDataString(branch)}" +
+                  $"&versionDescriptor.versionType=branch" +
+                  $"&api-version={_apiVersion}";
+
+        var response = await _http.GetAsync(url, ct);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return json?["value"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(i => new GitItem
+            {
+                Path = i["path"]?.ToString(),
+                GitObjectType = i["gitObjectType"]?.ToString(),
+                IsFolder = i["isFolder"]?.GetValue<bool>() ?? false,
+                ObjectId = i["objectId"]?.ToString(),
+                Url = i["url"]?.ToString(),
+                Size = i["contentMetadata"]?["fileLength"]?.GetValue<long?>()
+                       ?? i["size"]?.GetValue<long?>()
+            })
+            .Where(i => i.Path is not null)
+            .ToList() ?? [];
+    }
+
+    public async Task<string?> GetLatestCommitShaAsync(
+        string repositoryId, string branch, CancellationToken ct = default)
+    {
+        // Refs API: filter pomija prefix "refs/" – wystarczy "heads/{branch}".
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/refs" +
+                  $"?filter={Uri.EscapeDataString($"heads/{branch}")}" +
+                  $"&api-version={_apiVersion}";
+
+        var response = await _http.GetAsync(url, ct);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+        var refs = json?["value"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
+
+        // Pe³na nazwa "refs/heads/{branch}" — porównujemy precyzyjnie.
+        var full = $"refs/heads/{branch}";
+        var match = refs.FirstOrDefault(r =>
+            string.Equals(r["name"]?.ToString(), full, StringComparison.OrdinalIgnoreCase));
+
+        return match?["objectId"]?.ToString();
+    }
+
+    public async Task<List<RepoFileChange>?> GetChangesBetweenCommitsAsync(
+        string repositoryId, string? baseSha, string targetSha, CancellationToken ct = default)
+    {
+        // Bez bazowego SHA nie mo¿emy zrobiæ diff-a — sygnalizujemy full-scan.
+        if (string.IsNullOrEmpty(baseSha))
+            return null;
+
+        if (string.Equals(baseSha, targetSha, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        // Git diffs/commits API zwraca paczki po max ~1000 zmian; bierzemy hojny $top
+        // i ewentualn¹ paginacjê dorzucimy gdy zacznie obcinaæ.
+        var url = $"{_project}/_apis/git/repositories/{repositoryId}/diffs/commits" +
+                  $"?baseVersion={baseSha}&baseVersionType=commit" +
+                  $"&targetVersion={targetSha}&targetVersionType=commit" +
+                  $"&$top=2000" +
+                  $"&api-version={_apiVersion}";
+
+        var response = await _http.GetAsync(url, ct);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+
+        return json?["changes"]?.AsArray()
+            .OfType<JsonObject>()
+            .Select(c => new RepoFileChange
+            {
+                Path = c["item"]?["path"]?.ToString(),
+                OriginalPath = c["originalPath"]?.ToString()
+                               ?? c["sourceServerItem"]?.ToString(),
+                ChangeType = c["changeType"]?.ToString()
+            })
+            .Where(c => c.Path is not null)
             .ToList() ?? [];
     }
 

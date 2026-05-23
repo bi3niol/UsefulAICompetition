@@ -1,12 +1,16 @@
 <Solution>
+  <Folder Name="/DevOpsImpactAnalyzer/">
+    <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.csproj" />
+    <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension.esproj">
+      <Build />
+      <Deploy />
+    </Project>
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Folder Name="/WikiDocGenerator/">
+    <Project Path="BSolution.Netwise.UsefulAI.WikiDocGenerator.App/BSolution.Netwise.UsefulAI.WikiDocGenerator.App.csproj" />
+  </Folder>
   <Project Path="BSolution.Netwise.UsefulAI.Core/BSolution.Netwise.UsefulAI.Core.csproj" />
-  <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.csproj" />
-  <Project Path="BSolution.Netwise.UsefulAI.WikiDocGenerator.App/BSolution.Netwise.UsefulAI.WikiDocGenerator.App.csproj" />
-  <Project Path="BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension.esproj">
-    <Build />
-    <Deploy />
-  </Project>
 </Solution>

@@ -1,7 +1,10 @@
 using BSolution.Netwise.UsefulAI.Core.Configuration;
 using BSolution.Netwise.UsefulAI.Core.Services;
+using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Models;
+using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Services;
 using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Tools.Research;
 using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Tools.Sender;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -22,12 +25,21 @@ public static class WikiDocGeneratorToolsConfig
         services.AddUsefulAICoreServices();
 
         // Source query — feature-level work items dla cyklicznego odświeżania wiki.
-        // Używamy wspólnego WorkItemQueryService z Core, sparametryzowanego listą typów.
         services.AddSingleton<IWorkItemQueryService>(sp => new WorkItemQueryService(
             sp.GetRequiredService<IAzureDevOpsService>(),
             sp.GetRequiredService<ILogger<WorkItemQueryService>>(),
             DocumentableWorkItemTypes,
             logTag: "WIKIGEN-QUERY"));
+
+        // Code scan options (bound from config section WikiDocGenerator:Code)
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var opts = new CodeScanOptions();
+            config.GetSection("WikiDocGenerator:Code").Bind(opts);
+            return Microsoft.Extensions.Options.Options.Create(opts);
+        });
+        services.AddSingleton<CodeRepositoryResolver>();
 
         // Research tools
         services.AddSingleton<GetPullRequestDetailsTool>();
@@ -36,6 +48,8 @@ public static class WikiDocGeneratorToolsConfig
         services.AddSingleton<ListWikiPagesTool>();
         services.AddSingleton<GetWikiPageTool>();
         services.AddSingleton<GetWorkItemDetailsTool>();
+        services.AddSingleton<ListCodeRepositoriesTool>();
+        services.AddSingleton<ListRepositoryFilesTool>();
         services.AddSingleton<ResearchTools>();
 
         // Sender tools
