@@ -29,6 +29,7 @@ public class WikiDocResearchFunction(
         {
             WikiGenSource.PullRequest => BuildPrPrompt(message),
             WikiGenSource.WorkItems => BuildWiPrompt(message),
+            WikiGenSource.CodeScan => BuildCodeScanPrompt(message),
             _ => null
         };
 
@@ -75,6 +76,19 @@ public class WikiDocResearchFunction(
             WorkItemIds: msg.WorkItemIds,
             RepositoryId: msg.RepositoryId);
         return pipeline.BuildSeedPromptForWorkItems(request);
+    }
+
+    private string BuildCodeScanPrompt(WikiGenPipelineMessage msg)
+    {
+        var request = new CodeScanRequest(
+            RepositoryId: msg.RepositoryId ?? string.Empty,
+            RepositoryName: msg.RepositoryName ?? string.Empty,
+            Branch: msg.Branch ?? "main",
+            TargetCommitSha: string.Empty,
+            BaseCommitSha: null,
+            IsFullScan: msg.IsFullScan,
+            Files: []);
+        return pipeline.BuildSeedPromptForCodeScan(request);
     }
 }
 

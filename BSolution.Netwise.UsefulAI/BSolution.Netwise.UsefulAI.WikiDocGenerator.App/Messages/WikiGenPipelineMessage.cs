@@ -37,6 +37,14 @@ public class WikiGenPipelineMessage
     // ── Work Items fields ──────────────────────────────────────────────────
 
     public List<int> WorkItemIds { get; set; } = [];
+
+    // ── Code Scan fields ───────────────────────────────────────────────────
+
+    /// <summary>Branch to scan (resolved from config).</summary>
+    public string? Branch { get; set; }
+
+    /// <summary>True for initial full scan, false for incremental (diff-based).</summary>
+    public bool IsFullScan { get; set; }
 }
 
 public enum WikiGenSource

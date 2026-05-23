@@ -125,6 +125,27 @@ Per-app DI in `Configs/WikiDocGeneratorToolsConfig.AddWikiDocGeneratorTools()`.
 
 ## Non-negotiable project rules
 
+### 0. File placement — use correct project directories (CRITICAL)
+The solution root is the directory containing the `.sln` file. Each project
+lives in its own folder **directly** under the solution root:
+
+```
+<solution-root>/
+├── BSolution.Netwise.UsefulAI.Core/
+├── BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/
+├── BSolution.Netwise.UsefulAI.WikiDocGenerator.App/
+└── BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/
+```
+
+When creating or moving files, **always** place them relative to the correct
+project folder listed above. Never nest a project folder inside another
+project folder (e.g. do NOT create
+`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/BSolution.Netwise.UsefulAI.WikiDocGenerator.App/`).
+
+Before writing a new file, verify the target path starts with one of the
+known project directories shown above. If unsure, use `get_projects_in_solution`
+to confirm actual project paths.
+
 ### 1. Follow the existing pipeline model
 - Keep **one Function class per pipeline stage**.
 - Do **not** call downstream stages directly.

@@ -156,7 +156,63 @@ Watermarks record the **run start time** (not end), so items changed during proc
 
 ## Next steps (planned)
 
-- CodeRefreshTimerFunction - daily incremental scan of configured repos (diff-based via commit SHA watermark).
-- Code summarization stage - LLM converts raw code into descriptive text before indexing.
-- Azure AI Search index (wikigen-code) for semantic search over code descriptions.
+### Future improvement: Code Knowledge Index (semantic code understanding)
+
+The current pipeline reads raw source code directly via DevOps API during each
+Researcher run. This works for small/medium repos but has limitations:
+
+- Researcher must guess which files are relevant based on paths alone.
+- Large repos exceed token budgets quickly.
+- No semantic understanding of code relationships across files.
+
+**Planned approach — Code Indexing Pipeline:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Code Indexing Pipeline (offline, timer-triggered)                   │
+│                                                                     │
+│  1. Scan repo (diff since last commit SHA watermark)                │
+│  2. Chunk code into logical units (classes, methods, config blocks) │
+│  3. LLM summarizes each chunk → natural language description        │
+│     e.g. "This class handles authentication token refresh using     │
+│      DefaultAzureCredential with retry policy for transient errors" │
+│  4. Generate embeddings for each description                        │
+│  5. Upload to AI Search index (wikigen-code)                        │
+│                                                                     │
+│  Watermark: wikigen.code.{repoId}.{branch}.lastSha                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**How it improves the generation pipeline:**
+
+- On PR merge or work item change, Researcher uses **semantic search** over
+  the code index instead of reading raw files.
+- Query: "what code implements feature X" → returns natural language
+  descriptions of relevant fragments + file paths.
+- Researcher understands *what the code does* without spending tokens on raw
+  source, and can identify related code across the entire repo.
+- Writer receives pre-digested knowledge → better wiki quality, fewer
+  hallucinations about code behavior.
+
+**Index schema (draft):**
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| id | string | Chunk unique ID |
+| repositoryId | string | Source repo |
+| filePath | string | File path in repo |
+| symbolName | string | Class/method name (if applicable) |
+| codeChunk | string | Raw code fragment |
+| naturalDescription | string | LLM-generated description |
+| descriptionVector | Collection(Single) | Embedding of description |
+| commitSha | string | Commit when indexed |
+| lastUpdated | DateTimeOffset | Index timestamp |
+
+**Decision:** Evaluate after the current pipeline is tested in production.
+If Researcher frequently misses relevant code or produces shallow documentation,
+implement this indexing layer.
+
+### Other planned items
+
+- CodeRefreshTimerFunction — daily incremental scan of configured repos (diff-based via commit SHA watermark).
 - Multi-repo orchestration for CodeScan source type.

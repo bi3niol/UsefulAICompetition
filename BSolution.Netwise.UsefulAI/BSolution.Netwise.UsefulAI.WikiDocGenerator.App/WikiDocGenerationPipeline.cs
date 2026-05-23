@@ -67,6 +67,16 @@ public class WikiDocGenerationPipeline
         return await RunInternalAsync(seedPrompt, ct);
     }
 
+    public async Task<string> RunForCodeScanAsync(CodeScanRequest request, CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "[WIKI-PIPELINE] Starting code scan wiki generation for repo '{Repo}' branch '{Branch}' (full={Full})",
+            request.RepositoryName, request.Branch, request.IsFullScan);
+
+        var seedPrompt = BuildSeedPromptForCodeScan(request);
+        return await RunInternalAsync(seedPrompt, ct);
+    }
+
     // ── Pipeline core ──────────────────────────────────────────────────────
 
     private async Task<string> RunInternalAsync(string seedPrompt, CancellationToken ct)
@@ -125,6 +135,43 @@ public class WikiDocGenerationPipeline
             NEW page path under a sensible hierarchy.
           • If a repository id is provided, optionally read a few representative
             files with ReadRepositoryFile() to make the documentation concrete.
+
+        Output the standard WikiResearchFindings JSON.
+    """;
+
+    /// <summary>Stage 2: Build seed prompt for code scan (initial or incremental).</summary>
+    public string BuildSeedPromptForCodeScan(CodeScanRequest request) => $"""
+        Source: CODE_SCAN
+        RepositoryId: {request.RepositoryId}
+        RepositoryName: {request.RepositoryName}
+        Branch: {request.Branch}
+        IsFullScan: {request.IsFullScan}
+
+        Generate wiki documentation based on the source code in this repository.
+
+        Steps:
+          1. Call ListCodeRepositories() to get repository details.
+          2. Call ListRepositoryFiles(repositoryId="{request.RepositoryId}") to discover
+             all code files in the repo (already filtered by config).
+          3. Group files by logical area (e.g. by folder, namespace, or feature domain).
+          4. For each logical area, read the most important/representative files
+             using ReadRepositoryFile() — focus on public APIs, models, services,
+             configuration, and entry points. Skip test files and generated code.
+          5. Check existing wiki pages with ListWikiPages() — if a page already
+             covers the area, plan an UPDATE (carry the ETag). Otherwise propose a
+             NEW page path.
+          6. For each area, summarize:
+             - What the code does (purpose, responsibilities)
+             - Key classes/interfaces and their roles
+             - How it connects to other areas
+             - Configuration and dependencies
+
+        Important:
+          - Do NOT produce one mega-page. Create focused pages per logical area.
+          - Prefer a hierarchy: /Architecture, /Services/ServiceName, /Models, etc.
+          - Keep documentation factual — describe WHAT the code does, not what it should do.
+          - If the repo is large, prioritize the most important areas (entry points,
+            domain services, public APIs) and note skipped areas in findings.
 
         Output the standard WikiResearchFindings JSON.
     """;
