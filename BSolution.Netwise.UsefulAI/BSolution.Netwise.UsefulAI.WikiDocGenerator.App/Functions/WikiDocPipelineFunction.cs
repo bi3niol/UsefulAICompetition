@@ -1,51 +1,61 @@
-﻿using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Messages;
+﻿using BSolution.Netwise.UsefulAI.Core.Stores;
+using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Messages;
 using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Models;
+using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Stores;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
 namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Functions;
 
 /// <summary>
-/// Stage 2 - Service Bus consumer on queue wikigen-pipeline.
-/// Receives WikiGenPipelineMessage and runs the full LLM pipeline.
+/// Stage 2/4 — Researcher. Konsumuje <see cref="WikiGenPipelineMessage"/> z kolejki
+/// <c>wikigen-pipeline</c>, buduje seed prompt, uruchamia agenta Researcher i zapisuje
+/// wynik (<see cref="WikiResearchFindings"/>) jako blob (Claim-Check). Na wyjściu
+/// enqueue'uje <see cref="BlobRefMessage"/> na <c>wikigen-write</c>.
 /// </summary>
-public class WikiDocPipelineFunction(
+public class WikiDocResearchFunction(
     WikiDocGenerationPipeline pipeline,
-    ILogger<WikiDocPipelineFunction> logger)
+    IBlobMessageStore blobStore,
+    ILogger<WikiDocResearchFunction> logger)
 {
-    [Function(nameof(WikiDocPipelineFunction))]
-    public async Task Run(
+    [Function(nameof(WikiDocResearchFunction))]
+    [ServiceBusOutput("wikigen-write", Connection = "ServiceBus")]
+    public async Task<BlobRefMessage?> Run(
         [ServiceBusTrigger("wikigen-pipeline", Connection = "ServiceBus")]
         WikiGenPipelineMessage message,
         CancellationToken ct)
     {
-        switch (message.Source)
+        var seedPrompt = message.Source switch
         {
-            case WikiGenSource.PullRequest:
-                await HandlePullRequestAsync(message, ct);
-                break;
+            WikiGenSource.PullRequest => BuildPrPrompt(message),
+            WikiGenSource.WorkItems => BuildWiPrompt(message),
+            _ => null
+        };
 
-            case WikiGenSource.WorkItems:
-                await HandleWorkItemsAsync(message, ct);
-                break;
-
-            case WikiGenSource.CodeScan:
-                logger.LogWarning("[WIKIGEN-PIPELINE] CodeScan source not yet implemented.");
-                break;
-
-            default:
-                logger.LogWarning("[WIKIGEN-PIPELINE] Unknown source '{Source}'.", message.Source);
-                break;
+        if (seedPrompt is null)
+        {
+            logger.LogWarning("[RESEARCH-FUNC] Unsupported source '{Source}' — skipping.", message.Source);
+            return null;
         }
+
+        var context = message.Source == WikiGenSource.PullRequest
+            ? $"PR-{message.PullRequestId}"
+            : $"WI-{string.Join("-", message.WorkItemIds.Take(5))}";
+
+        logger.LogInformation("[RESEARCH-FUNC] Running Researcher for {Context}...", context);
+
+        var findings = await pipeline.RunResearcherAsync(seedPrompt);
+
+        var blobPath = BlobPaths.Findings(context);
+        var blobUri = await blobStore.UploadAsync(blobPath, findings, ct);
+
+        logger.LogInformation("[RESEARCH-FUNC] Findings stored at '{BlobPath}'. Enqueuing to wikigen-write.", blobPath);
+        return new BlobRefMessage { BlobUri = blobUri };
     }
 
-    private async Task HandlePullRequestAsync(WikiGenPipelineMessage msg, CancellationToken ct)
+    private string BuildPrPrompt(WikiGenPipelineMessage msg)
     {
-        logger.LogInformation(
-            "[WIKIGEN-PIPELINE] Processing PR#{Id} from {Repo}.",
-            msg.PullRequestId, msg.RepositoryName);
-
-        var prEvent = new PullRequestEvent(
+        var pr = new PullRequestEvent(
             RepositoryId: msg.RepositoryId ?? string.Empty,
             RepositoryName: msg.RepositoryName ?? string.Empty,
             PullRequestId: msg.PullRequestId ?? 0,
@@ -55,24 +65,81 @@ public class WikiDocPipelineFunction(
             TargetBranch: msg.TargetBranch ?? string.Empty,
             MergeCommitId: msg.MergeCommitId,
             Author: msg.Author,
-            LinkedWorkItemIds: msg.LinkedWorkItemIds
-        );
-
-        var result = await pipeline.RunForPullRequestAsync(prEvent, ct);
-        logger.LogInformation("[WIKIGEN-PIPELINE] PR#{Id} done. Result: {Result}", msg.PullRequestId, result);
+            LinkedWorkItemIds: msg.LinkedWorkItemIds);
+        return pipeline.BuildSeedPromptForPullRequest(pr);
     }
 
-    private async Task HandleWorkItemsAsync(WikiGenPipelineMessage msg, CancellationToken ct)
+    private string BuildWiPrompt(WikiGenPipelineMessage msg)
     {
-        logger.LogInformation(
-            "[WIKIGEN-PIPELINE] Processing {Count} work item(s): [{Ids}].",
-            msg.WorkItemIds.Count, string.Join(", ", msg.WorkItemIds));
-
         var request = new WorkItemsWikiRefreshRequest(
             WorkItemIds: msg.WorkItemIds,
             RepositoryId: msg.RepositoryId);
+        return pipeline.BuildSeedPromptForWorkItems(request);
+    }
+}
 
-        var result = await pipeline.RunForWorkItemsAsync(request, ct);
-        logger.LogInformation("[WIKIGEN-PIPELINE] Work items batch done. Result: {Result}", result);
+/// <summary>
+/// Stage 3/4 — Writer + Editor loop. Konsumuje <see cref="BlobRefMessage"/> z kolejki
+/// <c>wikigen-write</c>, pobiera findings z bloba, uruchamia Writer/Editor loop
+/// i zapisuje gotowy draft (<see cref="WikiDraft"/>) jako blob. Enqueue'uje
+/// <see cref="BlobRefMessage"/> na <c>wikigen-send</c>.
+/// </summary>
+public class WikiDocWriteFunction(
+    WikiDocGenerationPipeline pipeline,
+    IBlobMessageStore blobStore,
+    ILogger<WikiDocWriteFunction> logger)
+{
+    [Function(nameof(WikiDocWriteFunction))]
+    [ServiceBusOutput("wikigen-send", Connection = "ServiceBus")]
+    public async Task<BlobRefMessage?> Run(
+        [ServiceBusTrigger("wikigen-write", Connection = "ServiceBus")]
+        BlobRefMessage message,
+        CancellationToken ct)
+    {
+        logger.LogInformation("[WRITE-FUNC] Downloading findings from '{Uri}'...", message.BlobUri);
+        var findings = await blobStore.DownloadAsync<WikiResearchFindings>(message.BlobUri, ct);
+
+        logger.LogInformation("[WRITE-FUNC] Running Writer + Editor loop...");
+        var draft = await pipeline.RunWriterEditorLoopAsync(findings);
+
+        if (draft.Edits.Count == 0)
+        {
+            logger.LogInformation("[WRITE-FUNC] No edits produced — nothing to send.");
+            return null;
+        }
+
+        var blobPath = BlobPaths.Draft(findings.Scope ?? "draft");
+        var blobUri = await blobStore.UploadAsync(blobPath, draft, ct);
+
+        logger.LogInformation(
+            "[WRITE-FUNC] Draft with {Count} edit(s) stored at '{BlobPath}'. Enqueuing to wikigen-send.",
+            draft.Edits.Count, blobPath);
+        return new BlobRefMessage { BlobUri = blobUri };
+    }
+}
+
+/// <summary>
+/// Stage 4/4 — Sender. Konsumuje <see cref="BlobRefMessage"/> z kolejki
+/// <c>wikigen-send</c>, pobiera draft z bloba i uruchamia agenta Sender
+/// który zapisuje strony wiki via <c>UpsertWikiPage()</c>.
+/// </summary>
+public class WikiDocSendFunction(
+    WikiDocGenerationPipeline pipeline,
+    IBlobMessageStore blobStore,
+    ILogger<WikiDocSendFunction> logger)
+{
+    [Function(nameof(WikiDocSendFunction))]
+    public async Task Run(
+        [ServiceBusTrigger("wikigen-send", Connection = "ServiceBus")]
+        BlobRefMessage message,
+        CancellationToken ct)
+    {
+        logger.LogInformation("[SEND-FUNC] Downloading draft from '{Uri}'...", message.BlobUri);
+        var draft = await blobStore.DownloadAsync<WikiDraft>(message.BlobUri, ct);
+
+        logger.LogInformation("[SEND-FUNC] Sending {Count} edit(s) to wiki...", draft.Edits.Count);
+        await pipeline.RunSenderAsync(draft);
+
+        logger.LogInformation("[SEND-FUNC] Done. {Count} page(s) written.", draft.Edits.Count);
     }
 }

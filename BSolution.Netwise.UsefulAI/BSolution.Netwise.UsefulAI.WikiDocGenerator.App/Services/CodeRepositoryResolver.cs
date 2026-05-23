@@ -1,15 +1,22 @@
-﻿using BSolution.Netwise.UsefulAI.Core.Services;
+﻿using BSolution.Netwise.UsefulAI.Core.Models;
+using BSolution.Netwise.UsefulAI.Core.Services;
 using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Services;
 
+/// <summary>
+/// Tłumaczy konfigową listę repozytoriów (<see cref="CodeScanOptions.Repositories"/>)
+/// na konkretne <c>(repositoryId, branch)</c> rozwiązane przez DevOps API.
+/// Cache'uje wynik — lista repo zmienia się rzadko, a webhooks/timer odpalają często.
+/// </summary>
 public class CodeRepositoryResolver
 {
     private readonly IAzureDevOpsService _devOps;
     private readonly CodeScanOptions _options;
     private readonly ILogger<CodeRepositoryResolver> _logger;
+
     private List<ResolvedRepository>? _cache;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
 
@@ -34,6 +41,7 @@ public class CodeRepositoryResolver
 
             if (_options.Repositories.Count == 0)
             {
+                _logger.LogInformation("[CODE-RESOLVER] No repositories configured for code scan.");
                 _cache = [];
                 return _cache;
             }
@@ -50,12 +58,16 @@ public class CodeRepositoryResolver
 
             foreach (var cfg in _options.Repositories)
             {
-                if (string.IsNullOrWhiteSpace(cfg.Name)) continue;
+                if (string.IsNullOrWhiteSpace(cfg.Name))
+                {
+                    _logger.LogWarning("[CODE-RESOLVER] Skipping repo entry with empty Name.");
+                    continue;
+                }
 
                 if (!byName.TryGetValue(cfg.Name, out var repo) &&
                     !byId.TryGetValue(cfg.Name, out repo))
                 {
-                    _logger.LogWarning("[CODE-RESOLVER] Repository '{Name}' not found — skipping.", cfg.Name);
+                    _logger.LogWarning("[CODE-RESOLVER] Repository '{Name}' not found in project — skipping.", cfg.Name);
                     continue;
                 }
 
@@ -63,9 +75,18 @@ public class CodeRepositoryResolver
                     ? cfg.Branch!
                     : NormalizeDefaultBranch(repo.DefaultBranch);
 
-                if (string.IsNullOrEmpty(branch)) continue;
+                if (string.IsNullOrEmpty(branch))
+                {
+                    _logger.LogWarning(
+                        "[CODE-RESOLVER] Repository '{Name}' has no Branch configured and no default branch — skipping.",
+                        cfg.Name);
+                    continue;
+                }
 
-                resolved.Add(new ResolvedRepository(Id: repo.Id!, Name: repo.Name ?? cfg.Name, Branch: branch));
+                resolved.Add(new ResolvedRepository(
+                    Id: repo.Id!,
+                    Name: repo.Name ?? cfg.Name,
+                    Branch: branch));
             }
 
             _cache = resolved;
@@ -77,6 +98,10 @@ public class CodeRepositoryResolver
         }
     }
 
+    /// <summary>
+    /// DevOps zwraca <c>refs/heads/main</c> jako <c>defaultBranch</c> — do API z
+    /// <c>versionDescriptor.version</c> potrzebujemy gołego <c>main</c>.
+    /// </summary>
     private static string? NormalizeDefaultBranch(string? full)
     {
         if (string.IsNullOrEmpty(full)) return null;

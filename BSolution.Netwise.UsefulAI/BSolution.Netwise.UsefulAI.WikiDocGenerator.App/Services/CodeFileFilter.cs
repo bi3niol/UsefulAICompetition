@@ -3,12 +3,21 @@ using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Models;
 
 namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Services;
 
+/// <summary>
+/// Stosuje filtry z <see cref="CodeScanOptions"/> do plików zwracanych przez DevOps API.
+/// Reguły:
+///   - tylko pliki (foldery odpadają),
+///   - rozszerzenie musi być na białej liście,
+///   - żaden segment ścieżki nie może być na czarnej liście katalogów,
+///   - rozmiar pliku &lt;= <see cref="CodeScanOptions.MaxFileBytes"/> (gdy znany).
+/// </summary>
 public static class CodeFileFilter
 {
     public static bool IsIncluded(string path, long? sizeBytes, CodeScanOptions options)
     {
         if (string.IsNullOrEmpty(path)) return false;
 
+        // Foldery / pliki bez rozszerzenia ignorujemy.
         var ext = Path.GetExtension(path);
         if (string.IsNullOrEmpty(ext)) return false;
 
