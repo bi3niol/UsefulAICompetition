@@ -14,9 +14,6 @@ param functionAppPrincipalId string
 param modelCapacity int = 50
 
 // ── Naming ────────────────────────────────────────────────────────────────────
-// AIServices (new Foundry) account: globally unique, becomes the subdomain
-//   <accountName>.services.ai.azure.com
-// Project is a child resource of the AIServices account (no global naming conflict).
 
 var searchName       = '${resourcePrefix}-search-${environment}'
 var foundryName      = '${resourcePrefix}-foundry-${environment}'
@@ -47,7 +44,6 @@ resource aiSearch 'Microsoft.Search/searchServices@2024-03-01-preview' = {
   }
 }
 
-// Role: Search Index Data Contributor → Function App (upload + query documents)
 resource searchDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aiSearch
   name: guid(aiSearch.id, functionAppPrincipalId, searchIndexDataContributorRoleId)
@@ -58,7 +54,6 @@ resource searchDataContributorRole 'Microsoft.Authorization/roleAssignments@2022
   }
 }
 
-// Role: Search Service Contributor → Function App (create/update index definitions)
 resource searchServiceContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aiSearch
   name: guid(aiSearch.id, functionAppPrincipalId, searchServiceContributorRoleId)
@@ -69,10 +64,7 @@ resource searchServiceContributorRole 'Microsoft.Authorization/roleAssignments@2
   }
 }
 
-// ── Azure AI Foundry — AIServices account (modern Foundry) ───────────────────
-// Replaces legacy: separate Azure OpenAI account + AI Hub workspace + Hub deps.
-// AIServices = Cognitive Services account that hosts OpenAI models AND Foundry
-// projects + agents. Endpoint: https://<accountName>.services.ai.azure.com
+// ── Azure AI Foundry — AIServices account ────────────────────────────────────
 
 resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
   name: foundryName
@@ -86,12 +78,11 @@ resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
   properties: {
     customSubDomainName: foundryName
     publicNetworkAccess: 'Enabled'
-    // allowProjectManagement = true is required for the Foundry "projects" sub-resource
     allowProjectManagement: true
   }
 }
 
-// GPT-4o — used by all 4 agents in the pipeline
+// GPT-4o
 resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = {
   parent: aiFoundry
   name: 'gpt-4o'
@@ -108,7 +99,7 @@ resource gpt4oDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-
   }
 }
 
-// o4-mini — used by Researcher and Writer agents (stronger reasoning model)
+// o4-mini
 resource o4MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = {
   parent: aiFoundry
   name: 'o4-mini'
@@ -126,7 +117,7 @@ resource o4MiniDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025
   }
 }
 
-// text-embedding-3-large — used by WorkItemIndexer + WikiIndexer (3072 dims)
+// text-embedding-3-large
 resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-04-01-preview' = {
   parent: aiFoundry
   name: 'text-embedding-3-large'
@@ -144,7 +135,7 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   }
 }
 
-// Role: Cognitive Services OpenAI User → Function App (call models via managed identity)
+// Role: Cognitive Services OpenAI User → Function App
 resource openAiUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aiFoundry
   name: guid(aiFoundry.id, functionAppPrincipalId, cognitiveServicesOpenAiUserRoleId)
@@ -155,7 +146,7 @@ resource openAiUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// ── Azure AI Foundry Project (child of AIServices account) ────────────────────
+// ── Azure AI Foundry Project ──────────────────────────────────────────────────
 
 resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-preview' = {
   parent: aiFoundry
@@ -169,7 +160,7 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-pre
   }
 }
 
-// Role: Azure AI Developer → Function App (use Foundry agents on the project)
+// Role: Azure AI Developer → Function App
 resource projectAiDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: aiProject
   name: guid(aiProject.id, functionAppPrincipalId, azureAiDeveloperRoleId)
@@ -184,11 +175,8 @@ resource projectAiDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-04
 
 output aiSearchEndpoint string      = 'https://${aiSearch.name}.search.windows.net'
 output aiSearchName string          = aiSearch.name
-// Endpoint of the AIServices account (also serves OpenAI models for direct calls if needed)
 output openAiEndpoint string        = aiFoundry.properties.endpoint
 output openAiName string            = aiFoundry.name
 output foundryAccountName string    = aiFoundry.name
 output foundryProjectName string    = aiProject.name
-// Foundry project endpoint — consumed by Microsoft.Agents.AI.Foundry / Azure.AI.Projects SDKs
-// Format: https://<accountName>.services.ai.azure.com/api/projects/<projectName>
 output foundryProjectEndpoint string = 'https://${aiFoundry.name}.services.ai.azure.com/api/projects/${aiProject.name}'

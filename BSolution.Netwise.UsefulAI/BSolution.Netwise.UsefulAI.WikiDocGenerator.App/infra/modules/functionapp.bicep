@@ -18,7 +18,7 @@ var cleanPrefix        = toLower(replace(resourcePrefix, '-', ''))
 var storageAccountName = take('${cleanPrefix}fn${uniqueString(resourceGroup().id)}', 24)
 var keyVaultName       = take('${cleanPrefix}kv${uniqueString(resourceGroup().id)}', 24)
 var aspName            = '${resourcePrefix}-asp-${environment}'
-var functionAppName    = '${resourcePrefix}-analyzer-func-${environment}'
+var functionAppName    = '${resourcePrefix}-wikigen-func-${environment}'
 var appInsightsName    = '${resourcePrefix}-appi-${environment}'
 var logAnalyticsName   = '${resourcePrefix}-law-${environment}'
 
@@ -143,13 +143,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
-      // .NET 10 isolated worker — if deployment fails, check Azure Functions .NET 10 support status
       netFrameworkVersion: 'v10.0'
       use32BitWorkerProcess: false
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
-      // App settings are managed by the separate `functionAppSettings` resource below
-      // so they can dependsOn the Key Vault role assignment without creating a cycle.
     }
   }
 }
@@ -166,17 +163,13 @@ resource kvSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
-// ── App Settings (separate resource so it can dependsOn the KV role) ─────────
-// IMPORTANT: a `sites/config 'appsettings'` resource REPLACES all app settings on the
-// Function App, so every setting (including system ones) must be listed here.
-// Secret names in Key Vault use `--` (KV disallows `:` and `__`); app setting names use
-// `__` which the .NET configuration provider maps to `:` in IConfiguration.
+// ── App Settings ─────────────────────────────────────────────────────────────
 
 resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
   parent: functionApp
   name: 'appsettings'
   properties: {
-    // Keyless storage auth via managed identity (no connection string needed)
+    // Keyless storage auth via managed identity
     AzureWebJobsStorage__accountName: storage.name
     AzureWebJobsStorage__credential: 'managedidentity'
     FUNCTIONS_EXTENSION_VERSION: '~4'
@@ -185,17 +178,7 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     WEBSITE_RUN_FROM_PACKAGE: '1'
 
     // ── Service Bus (keyless via managed identity) ──
-    // Connection name "ServiceBus" used by ServiceBusTrigger / ServiceBusOutput bindings
-    // in the work item indexing pipeline (WorkItemIndexer/Fetch/BuildDocuments/Upload).
     ServiceBus__fullyQualifiedNamespace: '${serviceBusNamespaceName}.servicebus.windows.net'
-
-    // ── Blob / Tables ──
-    // BlobMessageStore (Claim-Check) ORAZ SettingsStore (key-value config table)
-    // korzystają z tego samego storage account co Functions runtime
-    // (AzureWebJobsStorage). MI ma już przypisane role "Storage Blob Data Owner"
-    // i "Storage Table Data Contributor" (patrz wyżej).
-    // Nazwa konta jest pobierana z `AzureWebJobsStorage__accountName` — nie
-    // potrzebujemy oddzielnego app settingu.
 
     // ── Application secrets sourced from Key Vault ──
     Foundry__Endpoint:                  '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/Foundry--Endpoint)'
@@ -209,14 +192,15 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     AzureDevOps__Project:               '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--Project)'
     AzureDevOps__PersonalAccessToken:   '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/AzureDevOps--PersonalAccessToken)'
 
+    // ── WikiDocGenerator-specific settings ──
+    WikiDocGenerator__TargetWikiId:      '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/WikiDocGenerator--TargetWikiId)'
+
     // ── Pipeline agent model configuration ──
     Pipeline__ResearcherModel: 'o4-mini'
     Pipeline__WriterModel: 'o4-mini'
     Pipeline__EditorModel: 'gpt-4o'
     Pipeline__SenderModel: 'gpt-4o'
   }
-  // Ensure RBAC propagation finishes before the Function App tries to resolve the
-  // @Microsoft.KeyVault(...) references on cold start.
   dependsOn: [
     kvSecretsUserRole
   ]
