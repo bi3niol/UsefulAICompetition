@@ -24,6 +24,20 @@ public static class WikiDocGeneratorToolsConfig
         // BlobServiceClient, TableClient + stores) — z projektu Core.
         services.AddUsefulAICoreServices();
 
+        // Wiki store — feature flag WikiDocGenerator:UseBlobStorage (default: true).
+        // true  = tymczasowy Blob Storage backend (nie wymaga uprawnień do DevOps Wiki)
+        // false = docelowy DevOps Wiki API
+        services.AddSingleton<BlobWikiStore>();
+        services.AddSingleton<DevOpsWikiStore>();
+        services.AddSingleton<IWikiStore>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var useBlobStorage = config.GetValue("WikiDocGenerator:UseBlobStorage", defaultValue: true);
+            return useBlobStorage
+                ? sp.GetRequiredService<BlobWikiStore>()
+                : sp.GetRequiredService<DevOpsWikiStore>();
+        });
+
         // Source query — feature-level work items dla cyklicznego odświeżania wiki.
         services.AddSingleton<IWorkItemQueryService>(sp => new WorkItemQueryService(
             sp.GetRequiredService<IAzureDevOpsService>(),

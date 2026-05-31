@@ -1,16 +1,14 @@
-using BSolution.Netwise.UsefulAI.Core.Services;
-using Microsoft.Extensions.Configuration;
+using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Services;
 using System.ComponentModel;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Tools.Sender;
 
 /// <summary>
-/// Zapisuje (tworzy lub aktualizuje) stronę w generowanym wiki. Używa
-/// docelowego <c>TargetWikiId</c> z konfiguracji — generator NIGDY nie pisze
-/// do wiki używanego przez Impact Analyzera.
+/// Zapisuje (tworzy lub aktualizuje) stronę w generowanym wiki (Blob Storage).
+/// Generator NIGDY nie pisze do wiki używanego przez Impact Analyzera.
 /// </summary>
-public class UpsertWikiPageTool(IAzureDevOpsService devOps, IConfiguration config)
+public class UpsertWikiPageTool(IWikiStore wikiStore)
 {
     [AgentTool(Description = """
         Creates or updates a single page in the target (generated) wiki.
@@ -33,20 +31,16 @@ public class UpsertWikiPageTool(IAzureDevOpsService devOps, IConfiguration confi
             });
         }
 
-        var wikiId = config["WikiDocGenerator:TargetWikiId"]
-            ?? throw new InvalidOperationException("WikiDocGenerator:TargetWikiId not configured.");
-
         var eTag = string.IsNullOrWhiteSpace(existingETag) ? null : existingETag;
 
-        var result = await devOps.CreateOrUpdateWikiPageAsync(wikiId, path, markdownContent, eTag);
+        var result = await wikiStore.UpsertPageAsync(path, markdownContent, eTag);
 
         return JsonSerializer.Serialize(new
         {
             success = true,
             created = result.Created,
             path = result.Path,
-            eTag = result.ETag,
-            remoteUrl = result.RemoteUrl
+            eTag = result.ETag
         });
     }
 }

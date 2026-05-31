@@ -1,6 +1,4 @@
-using BSolution.Netwise.UsefulAI.Core.Services;
-using Microsoft.Extensions.Configuration;
-using System.ComponentModel;
+using BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Services;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Tools.Research;
@@ -9,7 +7,7 @@ namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Tools.Research;
 /// Listuje strony w docelowym (generowanym) wiki. Researcher porównuje listę z
 /// obszarami zmienionymi w PR i wybiera, które aktualizować.
 /// </summary>
-public class ListWikiPagesTool(IAzureDevOpsService devOps, IConfiguration config)
+public class ListWikiPagesTool(IWikiStore wikiStore)
 {
     [AgentTool(Description = """
         Returns the flat list of all page paths in the target (generated) wiki.
@@ -17,10 +15,7 @@ public class ListWikiPagesTool(IAzureDevOpsService devOps, IConfiguration config
         """)]
     public async Task<string> ListWikiPagesAsync()
     {
-        var wikiId = config["WikiDocGenerator:TargetWikiId"]
-            ?? throw new InvalidOperationException("WikiDocGenerator:TargetWikiId not configured.");
-
-        var paths = await devOps.GetWikiPagePathsAsync(wikiId);
-        return JsonSerializer.Serialize(new { wikiId, count = paths.Count, paths });
+        var paths = await wikiStore.ListPagePathsAsync();
+        return JsonSerializer.Serialize(new { count = paths.Count, paths });
     }
 }

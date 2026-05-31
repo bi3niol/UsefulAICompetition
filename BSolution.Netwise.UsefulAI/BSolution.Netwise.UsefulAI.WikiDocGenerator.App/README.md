@@ -73,7 +73,8 @@ Stage 4: Sender (tool: UpsertWikiPage)
 - AzureDevOps:Organization
 - AzureDevOps:Project
 - AzureDevOps:PersonalAccessToken (PAT with Code+Wiki+WorkItems read/write)
-- WikiDocGenerator:TargetWikiId (GUID of the generated wiki)
+- WikiDocGenerator:TargetWikiName (name of the generated wiki, default: "WikiAutoGenDoc"; resolved by name at startup, created if missing)
+- WikiDocGenerator:TargetWikiId (optional override — if set, skips name-based lookup)
 - Foundry:Endpoint
 - AzureWebJobsStorage__accountName
 - ServiceBus__fullyQualifiedNamespace
@@ -138,7 +139,7 @@ Watermarks record the **run start time** (not end), so items changed during proc
 - `Functions/` — Stage 1 (timer/webhook) + Stages 2-4 (SB consumers)
 - `Messages/` — Service Bus message contracts (`WikiGenPipelineMessage`, `BlobRefMessage`)
 - `Models/` — Pipeline input/output records + `CodeScanOptions`
-- `Services/` — `CodeRepositoryResolver`, `CodeFileFilter`
+- `Services/` — `CodeRepositoryResolver`, `CodeFileFilter`, `TargetWikiResolver` (resolves/creates target wiki by name)
 - `Stores/` — `BlobPaths` (claim-check blob path generation)
 - `Tools/Research/` — Agent tools for Researcher
 - `Tools/Sender/` — Agent tools for Sender

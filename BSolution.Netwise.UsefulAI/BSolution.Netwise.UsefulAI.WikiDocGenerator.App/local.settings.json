@@ -6,7 +6,15 @@
         "Pipeline__ResearcherModel": "o4-mini",
         "Pipeline__WriterModel": "o4-mini",
         "Pipeline__EditorModel": "gpt-4o",
-        "Pipeline__SenderModel": "gpt-4o"
+        "Pipeline__SenderModel": "gpt-4o",
+
+        // ── Code scan repositories ──
+        "WikiDocGenerator__Code__Repositories__0__Name": "DelayFix",
+        "WikiDocGenerator__Code__Repositories__0__Branch": "",
+        "WikiDocGenerator__Code__Repositories__1__Name": "DelayFixBusinessLogic",
+        "WikiDocGenerator__Code__Repositories__2__Name": "DelayFixCti",
+        "WikiDocGenerator__Code__Repositories__3__Name": "DelayFixInfrastructure",
+        "WikiDocGenerator__Code__Repositories__4__Name": "DelayFixWebResources"
         // Wymagana konfiguracja produkcyjna (przykłady):
         //"AzureWebJobsStorage__accountName": "<storage-account>",
         //"AzureWebJobsStorage__credential": "managedidentity",

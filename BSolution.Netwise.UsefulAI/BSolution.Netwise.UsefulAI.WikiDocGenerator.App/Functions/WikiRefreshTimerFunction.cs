@@ -23,7 +23,7 @@ public class WikiRefreshTimerFunction(
 {
     private const int WorkItemsPerBatch = 20;
 
-    [Function(nameof(WikiRefreshTimerFunction))]
+    //[Function(nameof(WikiRefreshTimerFunction))]
     [ServiceBusOutput("wikigen-pipeline", Connection = "ServiceBus")]
     public async Task<WikiGenPipelineMessage[]> Run(
         [TimerTrigger("0 0 2 * * *", RunOnStartup = false)] TimerInfo timer,
