@@ -6,6 +6,7 @@ public class ResearchTools(
     GetPullRequestDetailsTool prDetails,
     GetPullRequestChangesTool prChanges,
     ReadRepositoryFileTool readFile,
+    AnalyzeRepositoryFileTool analyzeFile,
     ListWikiPagesTool listWiki,
     GetWikiPageTool getWiki,
     GetWorkItemDetailsTool getWorkItem,
@@ -16,6 +17,7 @@ public class ResearchTools(
     [
         AIFunctionFactory.Create(prDetails.GetPullRequestDetailsAsync),
         AIFunctionFactory.Create(prChanges.GetPullRequestChangesAsync),
+        AIFunctionFactory.Create(analyzeFile.AnalyzeRepositoryFileAsync),
         AIFunctionFactory.Create(readFile.ReadRepositoryFileAsync),
         AIFunctionFactory.Create(listWiki.ListWikiPagesAsync),
         AIFunctionFactory.Create(getWiki.GetWikiPageAsync),

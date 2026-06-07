@@ -58,6 +58,7 @@ public static class WikiDocGeneratorToolsConfig
         // Research tools
         services.AddSingleton<GetPullRequestDetailsTool>();
         services.AddSingleton<GetPullRequestChangesTool>();
+        services.AddSingleton<AnalyzeRepositoryFileTool>();
         services.AddSingleton<ReadRepositoryFileTool>();
         services.AddSingleton<ListWikiPagesTool>();
         services.AddSingleton<GetWikiPageTool>();

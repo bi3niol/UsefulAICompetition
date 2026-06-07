@@ -20,8 +20,10 @@ internal static class WikiDocAgentPrompts
 
     Steps:
     1. For a PR: call GetPullRequestDetails() if not already provided.
-    2. Read 5–15 most relevant changed files via ReadRepositoryFile() to understand
-       WHAT actually changed semantically (not only paths).
+    2. First analyze candidate files using AnalyzeRepositoryFile() to get compact
+       structure and impact signals (classes/methods/references/summary).
+       Only then call ReadRepositoryFile() for 5–15 most relevant files when
+       full content is really necessary.
        Prefer files that drive behaviour: controllers, services, public APIs,
        domain entities, configuration, infrastructure. Skip tests, lockfiles,
        generated code unless they reveal intent.
