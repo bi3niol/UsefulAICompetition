@@ -1,15 +1,14 @@
 using BSolution.Netwise.UsefulAI.Core.Services;
-using System;
-using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
-using System.Text;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
 public class SearchWorkItemsTool(
     IEmbeddingService embeddingService,
-    IAzureSearchService searchService)
+    IAzureSearchService searchService,
+    ILogger<SearchWorkItemsTool> logger)
 {
     private const string WorkItemsIndex = "work-items-index";
 
@@ -37,6 +36,9 @@ public class SearchWorkItemsTool(
         [Description("Maximum number of results to return. Default: 10")]
         int maxResults = 10)
     {
+        logger.LogInformation("[TOOL] SearchWorkItems called — query='{Query}', itemType={ItemType}, minSimilarity={MinSimilarity}, maxResults={MaxResults}",
+            query, itemType, minSimilarity, maxResults);
+
         // Budujemy filter OData dla Azure AI Search
         string? filter = itemType != "all"
             ? $"type eq '{itemType}'"
@@ -52,6 +54,8 @@ public class SearchWorkItemsTool(
             filter: filter,
             top: maxResults,
             minScore: minSimilarity);
+
+        logger.LogInformation("[TOOL] SearchWorkItems — found {Count} result(s) for query='{Query}'", results.Count, query);
 
         if (results.Count == 0)
         {

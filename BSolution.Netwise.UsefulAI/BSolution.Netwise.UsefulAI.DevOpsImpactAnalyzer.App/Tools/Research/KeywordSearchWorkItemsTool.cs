@@ -1,10 +1,13 @@
 using BSolution.Netwise.UsefulAI.Core.Services;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
-public class KeywordSearchWorkItemsTool(IAzureDevOpsService devOps)
+public class KeywordSearchWorkItemsTool(
+    IAzureDevOpsService devOps,
+    ILogger<KeywordSearchWorkItemsTool> logger)
 {
     [AgentTool(Description = """
         Searches Azure DevOps work items using the NATIVE DevOps Work Item Search API
@@ -43,6 +46,9 @@ public class KeywordSearchWorkItemsTool(IAzureDevOpsService devOps)
         [Description("Maximum number of results to return (1-1000). Default: 25.")]
         int maxResults = 25)
     {
+        logger.LogInformation("[TOOL] KeywordSearchWorkItems called — query='{Query}', itemTypes={ItemTypes}, states={States}, maxResults={MaxResults}",
+            luceneQuery, itemTypes, states, maxResults);
+
         var filters = new Dictionary<string, string[]>();
 
         if (!string.Equals(itemTypes, "all", StringComparison.OrdinalIgnoreCase) &&
@@ -64,6 +70,8 @@ public class KeywordSearchWorkItemsTool(IAzureDevOpsService devOps)
             searchText: luceneQuery,
             filters: filters,
             top: Math.Clamp(maxResults, 1, 1000));
+
+        logger.LogInformation("[TOOL] KeywordSearchWorkItems — found {Count} result(s) for query='{Query}'", hits.Count, luceneQuery);
 
         if (hits.Count == 0)
         {

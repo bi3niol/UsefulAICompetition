@@ -14,23 +14,20 @@ The solution contains **two independent .NET 10 Azure Functions apps** that shar
 
 ## Working scope rule (CRITICAL)
 
-When the active task is about **WikiDocGenerator** (new app):
+When the active task is about **Impact Analyzer**:
 
 - You MAY freely modify:
-  - `BSolution.Netwise.UsefulAI.WikiDocGenerator.App/**`
-  - `BSolution.Netwise.UsefulAI.Core/**`
-- You MUST NOT modify:
   - `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/**`
-  - `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/**`
-- You MAY READ the Impact Analyzer code to:
+  - `BSolution.Netwise.UsefulAI.Core/**` (only when needed for Impact Analyzer)
+- You MUST NOT modify:
+  - `BSolution.Netwise.UsefulAI.WikiDocGenerator.App/**`
+- You MAY READ the WikiDocGenerator code to:
   - understand established patterns (pipelines, prompts, retry, indexing),
   - identify reusable services/tools that should be **extracted to Core**.
 - If shared code is needed, the only allowed path is:
   1. Move/extract the code into `BSolution.Netwise.UsefulAI.Core`.
   2. Update Impact Analyzer references to the Core types **only as a strictly mechanical follow-up** (using-imports + DI registrations). No behavior changes, no refactoring of unrelated code.
   3. Wire the Core type into WikiDocGenerator.
-
-When the active task is about **Impact Analyzer**, the symmetric rule applies (do not modify WikiDocGenerator).
 
 When the task is explicitly about extracting/refactoring shared code into Core, both apps may be touched — but each change to an unaffected app must remain mechanical (namespace/DI), never behavioral.
 
@@ -300,7 +297,7 @@ Maintains a **generated** wiki, separate from the manually authored wiki consume
 
 Do not:
 
-- modify Impact Analyzer code while working on WikiDocGenerator (and vice versa) beyond mechanical follow-ups required by a Core extraction
+- modify WikiDocGenerator code while working on Impact Analyzer (and vice versa) beyond mechanical follow-ups required by a Core extraction
 - turn the instruction file into a README
 - add broad architecture rewrites unless requested
 - bypass `IReportStore`, `IBlobMessageStore`, or `ISettingsStore`

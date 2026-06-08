@@ -1,12 +1,14 @@
 using BSolution.Netwise.UsefulAI.Core.Models;
 using BSolution.Netwise.UsefulAI.Core.Services;
-using Microsoft.Agents.AI;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
-public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
+public class GetWorkItemDetailsTool(
+    IAzureDevOpsService devOpsService,
+    ILogger<GetWorkItemDetailsTool> logger)
 {
     [AgentTool(Description = """
         Retrieves FULL details of a specific work item by its ID, including comments/discussion.
@@ -19,6 +21,8 @@ public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
         [Description("The numeric ID of the work item (e.g. 234)")]
         int workItemId)
     {
+        logger.LogInformation("[TOOL] GetWorkItemDetails called for WI#{WorkItemId}", workItemId);
+
         WorkItemDetail item;
 
         try
@@ -27,21 +31,27 @@ public class GetWorkItemDetailsTool(IAzureDevOpsService devOpsService)
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
+            logger.LogWarning("[TOOL] GetWorkItemDetails — WI#{WorkItemId} not found", workItemId);
             return JsonSerializer.Serialize(new
             {
                 error = $"Work item #{workItemId} not found",
                 workItemId
             });
         }
+
         List<WorkItemComment> comments;
         try
         {
             comments = await devOpsService.GetWorkItemCommentsAsync(workItemId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "[TOOL] GetWorkItemDetails — failed to fetch comments for WI#{WorkItemId}", workItemId);
             comments = [];
         }
+
+        logger.LogInformation("[TOOL] GetWorkItemDetails — WI#{WorkItemId} fetched: type={Type}, state={State}, comments={CommentCount}",
+            workItemId, item.Type, item.State, comments.Count);
 
         return JsonSerializer.Serialize(new
         {

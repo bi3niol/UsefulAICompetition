@@ -1,11 +1,14 @@
 using BSolution.Netwise.UsefulAI.Core.Models;
 using BSolution.Netwise.UsefulAI.Core.Services;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
-public class GetWikiPageDetailsTool(IAzureDevOpsService devOpsService)
+public class GetWikiPageDetailsTool(
+    IAzureDevOpsService devOpsService,
+    ILogger<GetWikiPageDetailsTool> logger)
 {
     [AgentTool(Description = """
         Retrieves the FULL content of a specific WIKI page by its wikiId and path.
@@ -21,6 +24,8 @@ public class GetWikiPageDetailsTool(IAzureDevOpsService devOpsService)
         [Description("The full page path (e.g. '/Architecture/ADR-012-Auth') as returned by SearchWikiTool")]
         string path)
     {
+        logger.LogInformation("[TOOL] GetWikiPageDetails called — wikiId={WikiId}, path={Path}", wikiId, path);
+
         WikiPageDetail page;
 
         try
@@ -29,6 +34,7 @@ public class GetWikiPageDetailsTool(IAzureDevOpsService devOpsService)
         }
         catch (HttpRequestException ex)
         {
+            logger.LogWarning(ex, "[TOOL] GetWikiPageDetails — failed to fetch page '{Path}' from wiki '{WikiId}'", path, wikiId);
             return JsonSerializer.Serialize(new
             {
                 error = $"Failed to fetch wiki page '{path}': {ex.Message}",
@@ -39,6 +45,7 @@ public class GetWikiPageDetailsTool(IAzureDevOpsService devOpsService)
 
         if (string.IsNullOrWhiteSpace(page.Content))
         {
+            logger.LogInformation("[TOOL] GetWikiPageDetails — page '{Path}' has no content (folder/container page)", path);
             return JsonSerializer.Serialize(new
             {
                 wikiId,
@@ -47,6 +54,9 @@ public class GetWikiPageDetailsTool(IAzureDevOpsService devOpsService)
                 note = "Page has no content (may be a container/folder page)."
             });
         }
+
+        logger.LogInformation("[TOOL] GetWikiPageDetails — page '{Path}' fetched, content length={ContentLength}",
+            page.Path, page.Content.Length);
 
         return JsonSerializer.Serialize(new
         {

@@ -1,15 +1,14 @@
 using BSolution.Netwise.UsefulAI.Core.Services;
-using System;
-using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
-using System.Text;
 using System.Text.Json;
 
 namespace BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App.Tools.Research;
 
 public class SearchWikiTool(
     IEmbeddingService embeddingService,
-    IAzureSearchService searchService)
+    IAzureSearchService searchService,
+    ILogger<SearchWikiTool> logger)
 {
     private const string WikiIndex = "wiki-pages-index";
 
@@ -34,6 +33,9 @@ public class SearchWikiTool(
         [Description("Maximum number of results to return. Default: 5")]
         int maxResults = 5)
     {
+        logger.LogInformation("[TOOL] SearchWiki called — query='{Query}', minSimilarity={MinSimilarity}, maxResults={MaxResults}",
+            query, minSimilarity, maxResults);
+
         var embedding = await embeddingService.GetEmbeddingAsync(query);
 
         var results = await searchService.HybridSearchAsync(
@@ -42,6 +44,8 @@ public class SearchWikiTool(
             filter: null,
             top: maxResults,
             minScore: minSimilarity);
+
+        logger.LogInformation("[TOOL] SearchWiki — found {Count} result(s) for query='{Query}'", results.Count, query);
 
         if (results.Count == 0)
         {
