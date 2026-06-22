@@ -7,12 +7,12 @@ Work in this repository as a **code agent**, not as a documentation writer.
 The solution contains **two independent .NET 10 Azure Functions apps** that share a common class library:
 
 1. **`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App`** — analyzes Azure DevOps work items via a 4-agent pipeline and produces impact analysis reports. Cooperates with the browser extension **`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension`**, which is the only consumer of its HTTP endpoints.
-2. **`BSolution.Netwise.UsefulAI.WikiDocGenerator.App`** — generates and updates Azure DevOps WIKI pages based on code, work items and merged pull requests. Currently under active development.
-3. **`BSolution.Netwise.UsefulAI.Core`** — shared class library hosting models, services, stores and DI registration reused by both apps.
+2. **`BSolution.Netwise.UsefulAI.WikiDocGenerator.App`** — generates and updates Azure DevOps WIKI pages based on code, work items, and merged pull requests. Currently under active development.
+3. **`BSolution.Netwise.UsefulAI.Core`** — shared class library hosting models, services, stores, and DI registration reused by both apps.
 
 ---
 
-## Working scope rule (CRITICAL)
+## Working Scope Rule (CRITICAL)
 
 When the active task is about **Impact Analyzer**:
 
@@ -33,7 +33,7 @@ When the task is explicitly about extracting/refactoring shared code into Core, 
 
 ---
 
-## Repository priorities
+## Repository Priorities
 
 When changing code, optimize for:
 
@@ -47,9 +47,9 @@ Do not redesign working areas without a clear reason.
 
 ---
 
-## Architecture summary
+## Architecture Summary
 
-### Shared infrastructure (used by both apps)
+### Shared Infrastructure (used by both apps)
 
 - Azure Functions isolated worker (.NET 10)
 - Azure Service Bus
@@ -60,7 +60,7 @@ Do not redesign working areas without a clear reason.
 - Azure DevOps REST API
 - Authentication: `DefaultAzureCredential` for Azure resources; PAT only for Azure DevOps.
 
-### `Core` library — key contents
+### `Core` Library — Key Contents
 
 - `Models/` — `DevOpsModels`, `WikiDocGenModels`, `SearchModels`, `SettingEntity` + `SettingKeys`.
 - `Services/` — `AzureDevOpsService`, `AzureSearchService`, `EmbeddingService`, `WorkItemQueryService` (generic WIQL with injected work item types).
@@ -93,9 +93,9 @@ Per-app DI in `Configs/WikiDocGeneratorToolsConfig.AddWikiDocGeneratorTools()`.
 
 ---
 
-## Non-negotiable project rules
+## Non-Negotiable Project Rules
 
-### 0. File placement — use correct project directories (CRITICAL)
+### 0. File Placement — Use Correct Project Directories (CRITICAL)
 The solution root is the directory containing the `.sln` file. Each project lives in its own folder **directly** under the solution root:
 <solution-root>/
 ├── BSolution.Netwise.UsefulAI.Core/
@@ -106,17 +106,17 @@ When creating or moving files, **always** place them relative to the correct pro
 
 Before writing a new file, verify the target path starts with one of the known project directories shown above. If unsure, use `get_projects_in_solution` to confirm actual project paths.
 
-### 1. Follow the existing pipeline model
+### 1. Follow the Existing Pipeline Model
 - Keep **one Function class per pipeline stage**.
 - Do **not** call downstream stages directly.
 - Communicate between Service Bus stages through **output bindings**.
 
-### 2. Preserve Claim-Check design (Impact Analyzer indexing)
+### 2. Preserve Claim-Check Design (Impact Analyzer Indexing)
 - Stage 1 queues carry small plain messages.
 - Stages 2–4 must store large payloads in Blob Storage via `IBlobMessageStore`.
 - Service Bus payload for those stages remains `BlobRefMessage`.
 
-### 3. Reuse existing services
+### 3. Reuse Existing Services
 Always check Core before introducing a new abstraction. Prefer extending:
 
 - `AzureDevOpsService` (REST surface)
@@ -126,17 +126,17 @@ Always check Core before introducing a new abstraction. Prefer extending:
 - `BlobMessageStore`, `SettingsStore`
 - `ReportStore` (Impact Analyzer-specific store, lives in its App project)
 
-### 4. Use DI and configuration only
+### 4. Use DI and Configuration Only
 - Register new services in the **app's own** `*ToolsConfig` extension.
 - Read settings from `IConfiguration`.
 - Never hardcode endpoints, queue names, model names, container names, wiki IDs, or secrets.
 
-### 5. Keep auth model unchanged
+### 5. Keep Auth Model Unchanged
 - `DefaultAzureCredential` for Azure resources.
 - No connection strings for Blob, Tables, Search, Service Bus, OpenAI, Foundry.
 - Azure DevOps PAT is the only expected secret-based auth.
 
-### 6. Respect persistence conventions
+### 6. Respect Persistence Conventions
 - Claim-check blobs: container `messages`.
 - Impact Analyzer reports: container `reports`.
 - Runtime KV config: table `Settings`, key conventions:
@@ -144,20 +144,20 @@ Always check Core before introducing a new abstraction. Prefer extending:
   - `wikigen.*` — WikiDocGenerator watermarks
 - New blob path patterns must be added in the App's `BlobPaths` (compose them from `Core.Stores.BlobPathHelpers`).
 
-### 7. Respect existing throttling approach
+### 7. Respect Existing Throttling Approach
 - Throttling lives in `host.json`.
 - Do **not** introduce `SemaphoreSlim`-based concurrency control for Service Bus handlers unless there is a very specific reason.
 
-### 8. Keep the two apps independent at runtime
+### 8. Keep the Two Apps Independent at Runtime
 - Each app has its own `Program.cs`, `host.json`, `local.settings.json`.
 - WikiDocGenerator and Impact Analyzer must be deployable independently.
 - Pipeline-specific models (e.g. `WikiGenPipelineModels`) stay in that app unless explicitly needed by Core or the other app.
 
 ---
 
-## Agent and tool rules (both apps)
+## Agent and Tool Rules (Both Apps)
 
-### Tool implementation
+### Tool Implementation
 All agent tools must:
 
 - be marked with `[AgentTool(Description = "...")]`
@@ -168,12 +168,12 @@ All agent tools must:
 
 `AgentToolAttribute` is currently defined per-app under `Tools/`. If a tool becomes useful for both apps, extract it (and the attribute) into Core.
 
-### Tool placement (per app)
+### Tool Placement (Per App)
 - Research tools → `Tools/Research/`
 - Sender tools → `Tools/Sender/`
 - Shared helper services → `Tools/Shared/` (or Core if reused by both apps)
 
-### Prompt changes
+### Prompt Changes
 Prompts live next to the pipeline they belong to (`AgentPrompts.cs` for Impact Analyzer, `WikiDocAgentPrompts.cs` for WikiDocGenerator). When editing:
 
 - preserve role separation between Researcher, Writer, Editor, Sender
@@ -182,7 +182,7 @@ Prompts live next to the pipeline they belong to (`AgentPrompts.cs` for Impact A
 
 ---
 
-## Data and indexing rules
+## Data and Indexing Rules
 
 ### Chunking
 Reuse `StringExtensions.SplitIntoChunks(...)` from Core.
@@ -194,12 +194,12 @@ Current limits (Impact Analyzer indexing):
 
 Do not invent a second chunking implementation.
 
-### Upload sizing
+### Upload Sizing
 - Azure AI Search uploads: max `500` documents per batch
 - Work item ID batches: max `100` IDs (Impact Analyzer indexing)
 - WikiDocGenerator timer: process work items in batches of `~20` per pipeline run so the LLM context stays manageable
 
-### Missing/broken data handling
+### Missing/Broken Data Handling
 For fetch stages:
 - prefer returning `null` / no downstream message for missing or broken external data
 - avoid poison-message loops and DLQ storms
@@ -213,7 +213,7 @@ Do not create ad hoc blobs or tables for tiny config values.
 
 ---
 
-## Important domain assumptions
+## Important Domain Assumptions
 
 ### Impact Analyzer
 Analyzes newly created/changed Azure DevOps work items to find:
@@ -232,7 +232,7 @@ Maintains a **generated** wiki, separate from the manually authored wiki consume
 
 ---
 
-## File map for common tasks
+## File Map for Common Tasks
 
 ### Impact Analyzer
 - HTTP/API changes: `Functions/GenerateWorkItemReportFunction.cs`, `Functions/GetWorkItemReportFunction.cs`, `Program.cs`
@@ -247,7 +247,7 @@ Maintains a **generated** wiki, separate from the manually authored wiki consume
 - App-specific models: `Models/WikiGenPipelineModels.cs`
 - DI: `Configs/WikiDocGeneratorToolsConfig.cs`
 
-### Core (shared)
+### Core (Shared)
 - DevOps integration: `Services/AzureDevOpsService.cs`
 - Search: `Services/AzureSearchService.cs`
 - WIQL: `Services/WorkItemQueryService.cs` (parameterized by work item types)
@@ -261,31 +261,31 @@ Maintains a **generated** wiki, separate from the manually authored wiki consume
 
 ---
 
-## Preferred change patterns
+## Preferred Change Patterns
 
-### When adding a new indexing stage (Impact Analyzer)
+### When Adding a New Indexing Stage (Impact Analyzer)
 - add a new message type only if the existing contract is insufficient
 - add blob path generation to the app's `BlobPaths`
 - keep the stage isolated in its own Function class
 - keep payloads serializable and storage-friendly
 
-### When adding a new tool
+### When Adding a New Tool
 - place it in the correct folder of the **owning app**
 - annotate with `[AgentTool]`, return JSON
 - register it in DI within that app's `*ToolsConfig`
 - wire it only into the agents that should use it
 - if both apps need it, extract to Core first
 
-### When adding a new setting
+### When Adding a New Setting
 - pick a stable key under the right prefix (`indexer.*`, `wikigen.*`, or a new app-specific prefix)
 - read it through `IConfiguration` or `ISettingsStore`
 - do not invent a new top-level config section unless necessary
 
-### When adding a new Azure resource dependency
+### When Adding a New Azure Resource Dependency
 - first check whether an existing service can absorb the capability
 - if a new resource is truly required, reflect it in Bicep and app configuration consistently
 
-### When extracting code into Core
+### When Extracting Code into Core
 - move concrete classes/interfaces under `BSolution.Netwise.UsefulAI.Core/<area>/`
 - parameterize anything that differed between the two call sites (e.g. type lists, container names, log tags)
 - update the originating app to consume the Core type via DI
@@ -293,7 +293,7 @@ Maintains a **generated** wiki, separate from the manually authored wiki consume
 
 ---
 
-## Avoid these mistakes
+## Avoid These Mistakes
 
 Do not:
 
@@ -310,7 +310,7 @@ Do not:
 
 ---
 
-## Testing guidance
+## Testing Guidance
 
 When adding or changing behavior, prefer tests around:
 
@@ -325,7 +325,7 @@ If no tests exist nearby, still keep the implementation testable: small methods,
 
 ---
 
-## Output style for code changes
+## Output Style for Code Changes
 
 When making changes:
 
