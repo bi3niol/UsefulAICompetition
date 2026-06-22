@@ -23,7 +23,7 @@ public class WorkItemIndexerFunction(
     /// <summary>Liczba ID na pojedynczą wiadomość Service Bus (= rozmiar paczki dla DevOps batch fetch).</summary>
     private const int IdsPerBatch = 100;
 
-    //[Function(nameof(WorkItemIndexerFunction))]
+    [Function(nameof(WorkItemIndexerFunction))]
     [ServiceBusOutput("workitem-ids", Connection = "ServiceBus")]
     public async Task<WorkItemIdsBatchMessage[]> Run(
         [TimerTrigger("0 0 0 * * *", RunOnStartup = true)] TimerInfo timerInfo,
