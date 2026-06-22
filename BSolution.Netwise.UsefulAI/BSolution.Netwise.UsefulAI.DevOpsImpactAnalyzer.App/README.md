@@ -132,6 +132,146 @@ Key browser-side pieces include:
 
 ---
 
+## ☁️ Azure infrastructure
+
+Impact Analyzer includes dedicated infrastructure templates under:
+
+- `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/infra/main.bicep`
+- `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/infra/modules/functionapp.bicep`
+- `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/infra/modules/servicebus.bicep`
+- `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/infra/modules/ai.bicep`
+
+### Deployment scope and layout
+
+The infrastructure is deployed at **subscription scope** and creates two resource groups per environment:
+- 🧠 AI resource group — Azure AI resources
+- ⚙️ App resource group — Function App and supporting runtime resources
+
+Resource group names are environment-suffixed, so the same naming prefix can be reused across `dev`, `test` and `prod`.
+
+### Provisioned resource areas
+
+#### ⚙️ Function App and runtime resources
+Defined mainly in `modules/functionapp.bicep`:
+- Azure Function App on a dedicated App Service Plan
+- system-assigned managed identity
+- Storage Account used by:
+  - Azure Functions runtime
+  - claim-check blobs
+  - reports storage
+  - Azure Tables settings store
+- Application Insights
+- Log Analytics Workspace
+- Key Vault for secrets referenced from app settings
+
+#### 📨 Messaging layer
+Defined in `modules/servicebus.bicep`:
+- Azure Service Bus namespace
+- 6 queues used by the indexing pipelines:
+  - `workitem-ids`
+  - `workitem-details`
+  - `workitem-documents`
+  - `wiki-page-refs`
+  - `wiki-pages`
+  - `wiki-documents`
+
+Queue settings are provisioned for the current pipeline design, including lock duration, TTL and dead-letter-related behavior.
+
+#### 🤖 AI layer
+Defined in `modules/ai.bicep`:
+- Azure AI Search service
+- Azure AI Foundry account
+- Azure AI Foundry project
+- model deployments currently used by the app:
+  - `gpt-4o`
+  - `o4-mini`
+  - `text-embedding-3-large`
+
+### 🔐 Identity and RBAC model
+
+The infrastructure follows the app's keyless Azure pattern:
+- the Function App uses a **system-assigned managed identity**
+- Bicep assigns RBAC roles for access to:
+  - Storage
+  - Service Bus
+  - Azure AI Search
+  - Azure AI Foundry / model access
+  - Key Vault secrets
+
+This allows the app to use `DefaultAzureCredential` for Azure resources while keeping Azure DevOps PAT as the main secret-based integration.
+
+### ⚙️ App settings wired by infrastructure
+
+The Function App app settings are provisioned in Bicep and include, among others:
+- `AzureWebJobsStorage__accountName`
+- `AzureWebJobsStorage__credential=managedidentity`
+- `ServiceBus__fullyQualifiedNamespace`
+- Key Vault-backed settings for:
+  - `Foundry__Endpoint`
+  - `AzureSearch__Endpoint`
+  - `AzureSearch__ApiKey`
+  - `AzureOpenAI__Endpoint`
+  - `AzureOpenAI__ApiKey`
+  - `AzureOpenAI__EmbeddingDeployment`
+  - `AzureDevOps__Organization`
+  - `AzureDevOps__Project`
+  - `AzureDevOps__PersonalAccessToken`
+- default pipeline model settings:
+  - `Pipeline__ResearcherModel`
+  - `Pipeline__WriterModel`
+  - `Pipeline__EditorModel`
+  - `Pipeline__SenderModel`
+
+---
+
+## 🚀 Infrastructure deployment scripts
+
+Infrastructure deployment assets live in:
+
+- `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/infra/deploy.ps1`
+- `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/infra/last-deploy-res.md`
+
+### `deploy.ps1`
+
+`deploy.ps1` is the main deployment helper for provisioning Azure infrastructure from the Bicep templates.
+
+What it does:
+- 📌 sets the target Azure subscription
+- 🏗️ runs `az deployment sub create` against `infra/main.bicep`
+- 🧾 prints important outputs such as Function App URL, Key Vault URI, Search endpoint and Foundry information
+- 📋 prints suggested next steps after provisioning
+
+Important parameters include:
+- `SubscriptionId`
+- `AiResourceGroupName`
+- `AppResourceGroupName`
+- `Location`
+- `ResourcePrefix`
+- `Environment`
+- `AspSku`
+- `DeploymentName`
+
+Example usage:
+- `./deploy.ps1 -SubscriptionId "<subscription-id>"`
+- `./deploy.ps1 -SubscriptionId "<subscription-id>" -Environment prod -Location swedencentral -AspSku P1v3`
+
+### `last-deploy-res.md`
+
+This file can be used as a lightweight deployment note or captured output reference for the last infrastructure run.
+
+### Post-deployment flow
+
+After infrastructure provisioning, the current script guidance expects follow-up steps such as:
+- adding secrets to Key Vault
+- configuring or verifying Function App settings that use Key Vault references
+- publishing the Function App code
+
+### Current note about the script output
+
+`deploy.ps1` still prints a legacy next-step note mentioning an Azure DevOps webhook endpoint. The current Impact Analyzer HTTP implementation exposes report endpoints under `/api/workitems/{workItemId}/report`, so that webhook hint should be treated as outdated operational guidance rather than current backend behavior.
+
+---
+
 ## 🔄 Analysis flow
 
 Impact analysis is exposed through two HTTP endpoints:
