@@ -1,498 +1,474 @@
-# DevOps Impact Analyzer — Project Context for GitHub Copilot
+# DevOps Impact Analyzer
 
-## 🎯 Project Goal
+## 🎯 Purpose
 
-Build a **multi-agent AI system** that automatically analyzes newly created Azure DevOps
-work items (User Stories, PBIs, Epics, Features) and produces an **impact analysis report**
-posted as a comment directly on the work item.
+`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App` is a .NET 10 Azure Functions app that analyzes Azure DevOps work items with a 4-agent pipeline and produces a structured markdown report for developers, analysts and delivery teams.
 
-The agent detects:
-- ⚠️ **Conflicts** — existing requirements that contradict the new work item
-- 🔗 **Dependencies** — related items that are affected by or linked to the new requirement
-- 📚 **WIKI references** — architecture decisions, ADRs, technical docs relevant to the change
+Its goal is not just to summarize a work item, but to **research surrounding context** and highlight what may matter before implementation or bug fixing starts.
 
----
+Depending on the work item type, the app produces one of two report styles:
 
-## 🧱 Technology Stack
+### 🧩 Standard impact analysis for requirements and delivery items
+For items such as User Story, Product Backlog Item, Feature, Epic, Requirement, Task or similar work, the pipeline focuses on:
+- ⚠️ detecting potential conflicts with existing requirements
+- 🔗 identifying dependencies, related work and impacted areas
+- 📚 finding relevant WIKI pages, architecture notes and technical decisions
+- 💡 recommending concrete follow-up actions before implementation
+- 🔍 documenting research coverage, so the team can see which search angles were used
 
-| Layer | Technology |
-|---|---|
-| Language | **C# / .NET 10** |
-| Agent Framework | **Microsoft.Agents.AI.Foundry** (prerelease NuGet) |
-| LLM + Embeddings | **Azure OpenAI** — GPT-4o + text-embedding-3-large |
-| Vector Store | **Azure AI Search** — hybrid search (vector + BM25 + semantic reranker) |
-| Webhook Trigger | **Azure Function** — HTTP trigger from Azure DevOps Webhook |
-| Indexing Backbone | **Azure Service Bus** (Standard) + **Azure Blob Storage** (Claim-Check) |
-| Runtime Config Store | **Azure Tables** — generic key-value `Settings` table (e.g. last-sync timestamps) |
-| Indexing Triggers | **Azure Function** — Timer + ServiceBus triggers |
-| DevOps Integration | **Azure DevOps REST API v7.1** — work items (WIQL + native Work Item Search) + WIKI + comments |
-| Auth | **Azure Identity** (DefaultAzureCredential, keyless) + PAT for DevOps |
-| IaC | **Bicep** — modular (`main.bicep` + `modules/*`) |
+The resulting report is an **impact analysis report** with sections centered on:
+- conflicts detected
+- dependencies
+- related WIKI pages
+- recommendations
+- research coverage
 
-### Key NuGet packages
+### 🐛 Bug-oriented diagnosis flow
+For `Bug` work items, the pipeline switches to a different research and writing strategy. Instead of focusing mainly on requirement conflicts, it emphasizes:
+- 🔁 finding similar bugs, especially resolved ones
+- 🧩 locating related PBIs, User Stories or Features that introduced the affected behavior
+- 📚 gathering architecture and troubleshooting documentation for the impacted area
+- 🔍 proposing evidence-based root-cause hypotheses
+- 💡 suggesting concrete investigation or fix approaches
 
-```xml
-<PackageReference Include="Microsoft.Agents.AI.Foundry" Version="*-*" />
-<PackageReference Include="Azure.AI.Projects" Version="1.*" />
-<PackageReference Include="Azure.Search.Documents" Version="11.*" />
-<PackageReference Include="Azure.AI.OpenAI" Version="2.*" />
-<PackageReference Include="Azure.Identity" Version="1.*" />
-<PackageReference Include="Azure.Storage.Blobs" Version="12.*" />
-<PackageReference Include="Azure.Data.Tables" Version="12.*" />
-<PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.*" />
-<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.*" />
-<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.*" />
-```
+The resulting report is a **bug diagnosis report** with sections centered on:
+- similar bugs
+- related work items
+- relevant architecture and documentation
+- possible root causes
+- suggested solutions
+- research coverage
 
----
+### 🤖 What the agent pipeline is designed to do
+The prompts define a strict role split:
+- `Researcher` searches broadly across work items and WIKI using multiple query angles
+- `Writer` transforms findings into a structured, linked markdown report
+- `Editor` checks completeness, usefulness, language consistency and missing references
+- `Sender` is intended to post the approved result back to Azure DevOps
 
-## 🤖 Multi-Agent Pipeline (analysis path)
-
-The system uses a **4-agent pipeline** pattern: `Researcher → Writer → Editor → Sender`
-
-Analysis is exposed via two HTTP functions:
-
-- `GenerateWorkItemReportFunction` — `POST /api/AnalyzeWorkItem/{workItemId}/generate`. Fetches the
-  work item from Azure DevOps, runs the pipeline synchronously, persists the resulting markdown
-  report to Blob Storage (`reports/{workItemId}.md`) via `IReportStore`, and returns it in the response.
-- `GetWorkItemReportFunction` — `GET /api/AnalyzeWorkItem/{workItemId}`. Returns the previously
-  generated report from Blob Storage; `404` if it has not been generated yet.
-
-There is currently **no DevOps webhook function** — wiring up an external webhook (e.g. via API
-Management or Logic App) that calls the generate endpoint is left to ops.
-
-```
-POST /api/AnalyzeWorkItem/{workItemId}/generate
-          ↓
-   [ORCHESTRATOR]  — ImpactAnalysisPipeline.cs
-          ↓
-   [RESEARCHER]    — searches DevOps items + WIKI (has search tools)
-          ↓ ResearchFindings (JSON)
-   [WRITER]        — produces structured markdown report (has GetCurrentDate tool)
-          ↓ draft report
-   [EDITOR]        — reviews report quality, approves or sends feedback (no tools)
-          ↓ approved report (max 2 retries back to Writer)
-   [SENDER]        — posts comment to DevOps work item (has post tool)
-          ↓
-   Comment posted on Work Item ✅
-          ↓
-   IReportStore.SaveAsync → Blob: reports/{workItemId}.md
-          ↓
-   Markdown returned in HTTP response
-
-GET  /api/AnalyzeWorkItem/{workItemId}
-          ↓
-   IReportStore.TryGetAsync → Blob: reports/{workItemId}.md
-          ↓
-   200 OK (markdown) / 404 (not generated yet)
-```
-
-Each agent is created via:
-
-```csharp
-AIAgent agent = new AIProjectClient(new Uri(foundryEndpoint), new DefaultAzureCredential())
-    .AsAIAgent(model: "gpt-4o", instructions: "...", tools: [...]);
-```
+The app cooperates with `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension`, which is the current consumer of its HTTP endpoints.
 
 ---
 
-## 🔄 Indexing Pipelines (Service Bus + Blob Storage, staged)
+## 📦 Projects in scope
 
-Both indexers use **4-stage Service Bus pipelines** with the **Claim-Check Pattern**:
-stages 2–4 store the full payload as a JSON blob in Azure Blob Storage and put only a thin
-`BlobRefMessage { BlobUri }` (~100 B) on the queue. This completely removes the 256 KB
-Service Bus Standard message size limit — blobs can be any size.
+### `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App`
+Owns:
+- HTTP endpoints for generating and retrieving reports
+- the 4-agent analysis pipeline
+- work item and WIKI indexing pipelines
+- Azure AI Search index bootstrap
+- report persistence in Blob Storage
 
-Stages 1 (`workitem-ids`, `wiki-page-refs`) carry small primitive messages and do NOT use Claim-Check.
+### `BSolution.Netwise.UsefulAI.Core`
+Shared infrastructure used by Impact Analyzer:
+- Azure DevOps integration
+- Azure AI Search runtime queries
+- embedding generation
+- WIQL work item querying
+- claim-check blob storage
+- settings store in Azure Tables
 
-### Work Item indexing pipeline
-
-```
-[WorkItemIndexerFunction]   Timer  0 */15 * * * *  (every 15 min, RunOnStartup)
-          ↓ first run  → IWorkItemQueryService.QueryAllIdsAsync()
-          ↓ next runs  → IWorkItemQueryService.QueryChangedIdsSinceAsync(ScheduleStatus.Last)
-          batches of 100 IDs
-   Service Bus queue: workitem-ids
-          ↓
-[WorkItemFetchFunction]     ServiceBusTrigger("workitem-ids")
-          ↓ batch GET work items (200/req) + comments via AzureDevOpsService
-          ↓ upload blob: workitem-details/{date}/{wiId}_{guid8}.json
-          ↓ emit BlobRefMessage[]  (one per WI)
-   Service Bus queue: workitem-details
-          ↓
-[WorkItemBuildDocumentsFunction]  ServiceBusTrigger("workitem-details")
-          ↓ download WorkItemDetailMessage blob
-          chunk (max 6 000 chars)
-          ↓ upload blob: workitem-documents/{date}/{wiId}_{guid8}.json  [List<WorkItemIndexDocument>]
-          ↓ emit BlobRefMessage?  (null → no message sent)
-   Service Bus queue: workitem-documents
-          ↓
-[WorkItemUploadFunction]    ServiceBusTrigger("workitem-documents")
-          ↓ download List<WorkItemIndexDocument> blob
-          ↓ IWorkItemSearchUploader.UploadAsync() → MergeOrUpload (≤500/batch)
-   Azure AI Search: work-items-index ✅
-```
-
-### WIKI indexing pipeline (analogous)
-
-```
-[WikiIndexerFunction]       Timer  0 0 */4 * * *  (every 4h, RunOnStartup)
-          ↓ first run  → IWikiPageQueryService.QueryPageRefsAsync(since: null) — full sync
-          ↓ next runs  → IWikiPageQueryService.QueryPageRefsAsync(since: lastSync) — incremental
-          ↓   incremental: Git Commits API (searchCriteria.fromDate) → changed .md paths only
-          ↓   fallback to full sync when repositoryId missing or PAT lacks Repos (Read)
-          ↓ enqueue WikiPageRefMessage  [plain, no Claim-Check]
-   Service Bus queue: wiki-page-refs
-          ↓
-[WikiPageFetchFunction]     ServiceBusTrigger("wiki-page-refs")
-          ↓ AzureDevOpsService.GetWikiPageAsync(...)
-          ↓ upload blob: wiki-pages/{date}/{wikiId}-{pathSlug}_{guid8}.json
-          ↓ emit BlobRefMessage?  (null on empty/broken page)
-   Service Bus queue: wiki-pages
-          ↓
-[WikiBuildDocumentsFunction]  ServiceBusTrigger("wiki-pages")
-          ↓ download WikiPageContentMessage blob
-          chunk Markdown (H1/H2, max 4 500 chars)
-          ↓ upload blob: wiki-documents/{date}/{wikiId}-{pathSlug}_{guid8}.json  [List<WikiIndexDocument>]
-          ↓ emit BlobRefMessage?
-   Service Bus queue: wiki-documents
-          ↓
-[WikiUploadFunction]        ServiceBusTrigger("wiki-documents")
-          ↓ download List<WikiIndexDocument> blob
-          ↓ IWikiSearchUploader.UploadAsync() → upsert (≤500/batch)
-   Azure AI Search: wiki-pages-index ✅
-```
-
-### Claim-Check Pattern — blob naming convention
-
-Container: **`messages`** (auto-created by `BlobMessageStore` on first write).
-
-| Subfolder | Payload type | Name pattern |
-|---|---|---|
-| `workitem-details/` | `WorkItemDetailMessage` | `{date}/{wiId}_{guid8}.json` |
-| `workitem-documents/` | `List<WorkItemIndexDocument>` | `{date}/{wiId}_{guid8}.json` |
-| `wiki-pages/` | `WikiPageContentMessage` | `{date}/{wikiId}-{pathSlug}_{guid8}.json` |
-| `wiki-documents/` | `List<WikiIndexDocument>` | `{date}/{wikiId}-{pathSlug}_{guid8}.json` |
-
-`guid8` = first 8 hex chars of a new `Guid` — guarantees uniqueness across re-indexing runs.
-`pathSlug` = wiki path sanitised: `/` → `-`, non-alphanumeric stripped, max 50 chars.
-
-Blobs are **not deleted after processing** — use Azure Blob Storage Lifecycle Management for retention if needed.
-
-### Throttling & reliability
-
-- **Concurrency** capped via `host.json` (NOT `SemaphoreSlim`):
-  `extensions.serviceBus.maxConcurrentCalls = 4`, `prefetchCount = 8`.
-- **Lock duration** 5 min, **maxDeliveryCount** 5, **dead-lettering on expiration** enabled.
-- **Stage 2 (Fetch) returns `null`** on missing/broken pages → no message sent, no DLQ storm.
-- **BlobRefMessage on SB** is ~100 B → 256 KB limit is never a concern.
-- **Blob payloads are unbounded** — handles Epic WI with 100+ comments, multi-MB WIKI pages.
-- **Last-sync watermarks** for stage 1 timers are persisted via `ISettingsStore` (Azure Tables
-  `Settings` table, keys `indexer.workitems.lastSync` / `indexer.wiki.lastSync`).
-- **Auth is keyless** — Blob, Tables and Service Bus all reuse the **same storage account as the
-  Functions runtime**. App settings: `ServiceBus__fullyQualifiedNamespace` and
-  `AzureWebJobsStorage__accountName` (consumed via `config["AzureWebJobsStorage:accountName"]`).
-  Function App MI requires: `Azure Service Bus Data Sender/Receiver`, `Storage Blob Data Owner`,
-  `Storage Table Data Contributor`.
-
-### Search index bootstrap
-
-```
-[SearchIndexManager]  IHostedService — runs automatically on Function App startup
-          ↓ CreateOrUpdateIndex: work-items-index + wiki-pages-index
-          ↓ HNSW (cosine, M=4, efConstruction=400, efSearch=500), 3072 vector dims
-          ↓ SemanticConfiguration: devops-semantic-config (on both indexes)
-```
+### `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension`
+Browser extension that calls the backend and shows the generated report in Azure DevOps.
 
 ---
 
-## 📁 Solution Structure
+## 🧩 Browser extension
 
-```
-BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/
-│
-├── Program.cs                                ✅ Function host bootstrap + DI
-├── ImpactAnalysisPipeline.cs                 ✅ Orchestrates all 4 agents
-├── AgentPrompts.cs                           ✅ System prompts for all agents
-├── host.json                                 ✅ Service Bus throttling
-│
-├── Functions/
-│   ├── GenerateWorkItemReportFunction.cs     ✅ POST /api/AnalyzeWorkItem/{workItemId}/generate
-│   │                                            — runs pipeline, persists report to Blob, returns markdown
-│   ├── GetWorkItemReportFunction.cs          ✅ GET  /api/AnalyzeWorkItem/{workItemId}
-│   │                                            — returns stored report from Blob (404 if missing)
-│   ├── HttpTestFunction.cs                   ✅ Ad-hoc HTTP endpoint for manual tool testing
-│   │
-│   ├── WorkItemIndexerFunction.cs            ✅ Stage 1/4 Timer → workitem-ids
-│   ├── WorkItemFetchFunction.cs              ✅ Stage 2/4 SB + Blob → workitem-details
-│   ├── WorkItemBuildDocumentsFunction.cs     ✅ Stage 3/4 SB + Blob → workitem-documents
-│   ├── WorkItemUploadFunction.cs             ✅ Stage 4/4 SB + Blob → AI Search
-│   │
-│   ├── WikiIndexerFunction.cs                ✅ Stage 1/4 Timer → wiki-page-refs
-│   ├── WikiPageFetchFunction.cs              ✅ Stage 2/4 SB + Blob → wiki-pages
-│   ├── WikiBuildDocumentsFunction.cs         ✅ Stage 3/4 SB + Blob → wiki-documents
-│   └── WikiUploadFunction.cs                 ✅ Stage 4/4 SB + Blob → AI Search
-│
-├── Indexing/
-│   ├── SearchIndexManager.cs                 ✅ IHostedService — creates both AI Search indexes
-│   │
-│   ├── WorkItemIndexDocument.cs              ✅ Typed DTO for AI Search upload
-│   ├── WorkItemQueryService.cs               ✅ WIQL + change detection (uses ISettingsStore)
-│   ├── WorkItemDocumentBuilder.cs            ✅ Chunk + embed work items
-│   ├── WorkItemSearchUploader.cs             ✅ MergeOrUpload to work-items-index
-│   │
-│   ├── WikiIndexDocument.cs                  ✅ Typed DTO for AI Search upload
-│   ├── WikiPageQueryService.cs               ✅ Enumerate wikis + page paths
-│   ├── WikiDocumentBuilder.cs                ✅ Chunk Markdown + embed
-│   ├── WikiSearchUploader.cs                 ✅ Upsert to wiki-pages-index
-│   │
-│   └── Messages/
-│       ├── BlobRefMessage.cs                 ✅ Thin SB message { BlobUri } — Claim-Check ref
-│       ├── WorkItemIdsBatchMessage.cs        ✅ workitem-ids payload  (plain, no Claim-Check)
-│       ├── WorkItemDetailMessage.cs          ✅ workitem-details blob payload
-│       ├── WorkItemIndexDocumentsMessage.cs  (legacy — blob carries List<> directly)
-│       ├── WikiPageRefMessage.cs             ✅ wiki-page-refs payload  (plain, no Claim-Check)
-│       ├── WikiPageContentMessage.cs         ✅ wiki-pages blob payload
-│       └── WikiIndexDocumentsMessage.cs      (legacy — blob carries List<> directly)
-│
-├── Stores/
-│   ├── BlobMessageStore.cs                   ✅ IBlobMessageStore + BlobPaths (Claim-Check, container `messages`)
-│   ├── ReportStore.cs                        ✅ IReportStore — Impact Analysis reports (container `reports`)
-│   └── SettingsStore.cs                      ✅ ISettingsStore — generic JSON KV on Azure Tables
-│
-├── Tools/
-│   ├── AgentToolAttribute.cs                 ✅ [AgentTool(Description = "...")]
-│   ├── Research/
-│   │   ├── SearchWorkItemsTool.cs            ✅ Semantic / hybrid (vector + BM25 + reranker)
-│   │   ├── KeywordSearchWorkItemsTool.cs     ✅ Native DevOps Work Item Search (Lucene/BM25)
-│   │   ├── SearchWikiTool.cs                 ✅
-│   │   ├── GetWorkItemDetailsTool.cs         ✅
-│   │   ├── GetWikiPageDetailsTool.cs         ✅
-│   │   └── ResearchTools.cs                  ✅
-│   ├── Writer/
-│   │   └── WriterTools.cs                    ✅ GetCurrentDate tool for report timestamps
-│   ├── Sender/
-│   │   ├── PostCommentTool.cs                ✅
-│   │   └── SenderTools.cs                    ✅
-│   └── Shared/
-│       ├── EmbeddingService.cs               ✅ text-embedding-3-large via AIProjectClient
-│       ├── AzureSearchService.cs             ✅ Hybrid search wrapper
-│       └── AzureDevOpsService.cs             ✅ DevOps REST API v7.1 wrapper
-│
-├── Models/
-│   ├── SearchModels.cs                       ✅ SearchResultItem
-│   ├── DevOpsModels.cs                       ✅ WorkItemDetail, WikiPageDetail, WikiInfo
-│   ├── PipelineModels.cs                     ✅ WorkItemEvent, WorkItemRef, ResearchFindings,
-│   │                                            RelatedWorkItem, RelatedWikiPage, EditorDecision
-│   └── SettingEntity.cs                      ✅ Azure Tables row + SettingKeys constants
-│
-├── Extensions/
-│   └── StringExtensions.cs                   ✅ SplitIntoChunks(maxChars, overlapFraction)
-│
-├── Configs/
-│   └── ToolsConfig.cs                        ✅ DI (AddImpactAnalyzerTools)
-│
-├── docs/
-│   └── work-items-indexing.md                ✅ Pipeline reference docs
-│
-├── appsettings.json                          ✅ Config skeleton
-├── local.settings.json                       ⚠️ PARTIAL
-│
-└── infra/
-    ├── main.bicep                            ✅ Orchestrator
-    └── modules/
-        ├── functionapp.bicep                 ✅ Function App + MI + app settings
-        ├── servicebus.bicep                  ✅ Namespace + 6 queues + RBAC
-        └── ai.bicep                          ✅ AI Foundry + OpenAI + AI Search
-```
+`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/` is a **Manifest V3 Chrome/Edge browser extension** built with **React + TypeScript**.
 
-### Browser Extension (companion project)
+It injects an Impact Analyzer panel into the Azure DevOps work item page and calls the Function App backend to generate or retrieve the report.
 
-`BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/` — a **Manifest V3 Chrome/Edge
-browser extension** (React + TypeScript, built with Vite + CRXJS) that injects a side panel
-into the Azure DevOps work item page and calls the Function App backend to display the impact
-analysis report.
+### What it does
+- 🖥️ embeds a dedicated UI directly inside the Azure DevOps work item experience
+- 📡 calls the backend HTTP endpoints exposed by the Impact Analyzer app
+- 📝 renders the returned markdown report for the user
+- ⚙️ stores extension settings such as backend URL and credentials
 
-```
+### High-level structure
+
+```text
 BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/
 ├── src/
-│   ├── core/                          ← React + TS, framework-agnostic
-│   │   ├── ports/IWorkItemHost.ts     ← port interface for any host
-│   │   ├── services/                  ← ImpactAnalysisClient (fetch backend)
-│   │   ├── hooks/                     ← useWorkItemContext, useImpactAnalysis
-│   │   ├── components/                ← ImpactPanel, AnalysisReport, LoadingState, ErrorState
-│   │   └── markdown/                  ← markdown-it + DOMPurify
+│   ├── core/
+│   │   ├── ports/
+│   │   ├── services/
+│   │   ├── hooks/
+│   │   ├── components/
+│   │   └── markdown/
 │   └── adapters/
-│       └── browser/                   ← chrome.* + DOM injection
-│           ├── BrowserWorkItemHost.ts ← implements IWorkItemHost
-│           ├── content-script.tsx     ← injects panel into dev.azure.com
-│           ├── options.tsx            ← settings page (URL, key, PAT)
-│           ├── background.ts          ← service worker
-│           └── storage.ts             ← chrome.storage.sync wrapper
-├── tsconfig.json
-└── package.json
+│       └── browser/
+├── manifest.json
+├── package.json
+└── vite.config.ts
 ```
 
-See `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/README.md` for build & usage details.
+Key browser-side pieces include:
+- `ImpactAnalysisClient` — calls the backend
+- `content-script.tsx` — injects the panel into `dev.azure.com`
+- `BrowserWorkItemHost` — bridges browser/Azure DevOps page context into the app UI
+- `options.tsx` — extension configuration page
+- `storage.ts` — persistence for extension settings
 
 ---
 
-## ⚙️ Configuration
+## 🧱 Technology stack
 
-### `appsettings.json` (logical settings)
+| Area | Technology |
+|---|---|
+| Language | C# / .NET 10 |
+| Hosting | Azure Functions isolated worker |
+| Agent runtime | Microsoft.Agents.AI + Azure AI Foundry |
+| LLM models | Configured per pipeline stage via `Pipeline:*Model` |
+| Embeddings | Azure OpenAI (`text-embedding-3-large` by default) |
+| Search | Azure AI Search |
+| Messaging | Azure Service Bus |
+| Large message handling | Azure Blob Storage claim-check |
+| Runtime settings | Azure Tables (`Settings`) |
+| DevOps integration | Azure DevOps REST API |
+| Auth | `DefaultAzureCredential` for Azure resources, PAT for Azure DevOps |
+| IaC | Bicep |
 
-```json
-{
-  "AzureOpenAI": {
-    "Endpoint": "https://your-openai.openai.azure.com/",
-    "EmbeddingDeployment": "text-embedding-3-large"
-  },
-  "AzureSearch": {
-    "Endpoint": "https://your-search.search.windows.net"
-  },
-  "AzureDevOps": {
-    "Organization": "your-org",
-    "Project": "your-project",
-    "PersonalAccessToken": "-- use secrets / Key Vault --"
-  },
-  "Foundry": {
-    "Endpoint": "https://your-foundry.services.ai.azure.com/api/projects/your-project"
-  }
-}
+---
+
+## 🔄 Analysis flow
+
+Impact analysis is exposed through two HTTP endpoints:
+
+- `POST /api/workitems/{workItemId}/report`
+  - fetches the work item from Azure DevOps
+  - runs the analysis pipeline synchronously
+  - stores the resulting markdown in Blob Storage via `IReportStore`
+  - returns the markdown response
+- `GET /api/workitems/{workItemId}/report`
+  - returns the previously stored markdown report
+  - returns `404` when no report exists yet
+
+### Pipeline
+
+`ImpactAnalysisPipeline` runs a 4-agent flow:
+
+`Researcher → Writer → Editor → Sender`
+
+Current runtime behavior:
+- `Researcher` gathers related work items and WIKI context using tools
+- `Writer` produces the markdown report
+- `Editor` reviews the report and can request up to 2 rewrites
+- `Sender` tooling exists, but posting the comment is currently disabled in `RunAsync`
+- the approved report is returned to the caller and persisted by `GenerateWorkItemReportFunction`
+
+### Models per stage
+
+Configured in `appsettings.json` under:
+- `Pipeline:ResearcherModel`
+- `Pipeline:WriterModel`
+- `Pipeline:EditorModel`
+- `Pipeline:SenderModel`
+
+Current defaults in the repo:
+- Researcher: `o4-mini`
+- Writer: `o4-mini`
+- Editor: `gpt-4o`
+- Sender: `gpt-4o`
+
+---
+
+## Agent tools
+
+### Research tools
+Located in `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/Tools/Research/`:
+- `SearchWorkItemsTool`
+- `KeywordSearchWorkItemsTool`
+- `SearchWikiTool`
+- `GetWorkItemDetailsTool`
+- `GetWikiPageDetailsTool`
+- `ResearchTools`
+
+### Writer tools
+Located in `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/Tools/Writer/`:
+- `WriterTools`
+  - currently exposes `GetCurrentDate`
+
+### Sender tools
+Located in `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/Tools/Sender/`:
+- `PostCommentTool`
+- `SenderTools`
+
+Tool conventions used by this app:
+- tools are registered through DI in `Configs/ToolsConfig.cs`
+- reusable infrastructure is taken from `BSolution.Netwise.UsefulAI.Core`
+- sender tools exist even though comment posting is currently not invoked by the main pipeline flow
+
+---
+
+## Report storage
+
+Impact reports are stored by `ReportStore` in Blob Storage:
+
+- container: `reports`
+- blob name: `{workItemId}.md`
+- content type: `text/markdown; charset=utf-8`
+
+The blob name is deterministic, so a newly generated report overwrites the previous one for the same work item.
+
+---
+
+## Indexing pipelines
+
+Impact Analyzer maintains two Azure AI Search indexes:
+- `work-items-index`
+- `wiki-pages-index`
+
+Both indexing flows use a staged Service Bus pipeline.
+
+### Claim-check design
+
+- stage 1 queues carry small plain messages
+- stages 2-4 store larger payloads in Blob Storage via `IBlobMessageStore`
+- Service Bus then carries only `BlobRefMessage { BlobUri }`
+- claim-check payloads are stored in container `messages`
+
+### Work item indexing
+
+Functions:
+- `WorkItemIndexerFunction`
+- `WorkItemFetchFunction`
+- `WorkItemBuildDocumentsFunction`
+- `WorkItemUploadFunction`
+
+Flow:
+1. `WorkItemIndexerFunction`
+   - timer trigger: `0 0 0 * * *`
+   - `RunOnStartup = true`
+   - reads watermark `indexer.workitems.lastSync` from `ISettingsStore`
+   - queries IDs through `IWorkItemQueryService`
+   - emits `WorkItemIdsBatchMessage` batches of up to 100 IDs
+2. `WorkItemFetchFunction`
+   - fetches work item details and comments from Azure DevOps
+   - writes `WorkItemDetailMessage` payloads to blob storage
+   - emits `BlobRefMessage`
+3. `WorkItemBuildDocumentsFunction`
+   - builds `WorkItemIndexDocument` chunks
+   - uses shared chunking helper from Core
+   - stores document payloads in blob storage
+   - emits `BlobRefMessage`
+4. `WorkItemUploadFunction`
+   - uploads documents to Azure AI Search
+   - batch size up to 500 documents
+
+Indexed work item types are configured in `ToolsConfig.cs` and currently include:
+- User Story
+- Product Backlog Item
+- Bug
+- Task
+- Epic
+- Feature
+- Requirement
+
+### WIKI indexing
+
+Functions:
+- `WikiIndexerFunction`
+- `WikiPageFetchFunction`
+- `WikiBuildDocumentsFunction`
+- `WikiUploadFunction`
+
+Flow:
+1. `WikiIndexerFunction`
+   - timer trigger: `0 0 */4 * * *`
+   - `RunOnStartup = true`
+   - reads watermark `indexer.wiki.lastSync`
+   - enumerates WIKI pages through `IWikiPageQueryService`
+   - emits `WikiPageRefMessage`
+2. `WikiPageFetchFunction`
+   - downloads WIKI page content from Azure DevOps
+   - stores `WikiPageContentMessage` in blob storage
+   - emits `BlobRefMessage` or no downstream message for missing/broken pages
+3. `WikiBuildDocumentsFunction`
+   - builds `WikiIndexDocument` chunks
+   - stores document payloads in blob storage
+   - emits `BlobRefMessage`
+4. `WikiUploadFunction`
+   - uploads documents to Azure AI Search
+
+The WIKI pipeline supports incremental sync based on the persisted watermark and can fall back to full sync when incremental metadata is unavailable.
+
+### Blob path conventions
+
+App-specific blob paths are generated in `BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/Stores/BlobPaths.cs`.
+
+Current subfolders:
+- `workitem-details/`
+- `workitem-documents/`
+- `wiki-pages/`
+- `wiki-documents/`
+
+Pattern:
+- `{subfolder}/{yyyy-MM-dd}/{identity}_{guid8}.json`
+
+---
+
+## Search index bootstrap
+
+`SearchIndexManager` is registered as a hosted service and runs on app startup.
+
+It ensures both indexes exist with:
+- HNSW vector search
+- cosine distance
+- 3072-dimensional vectors
+- semantic configuration `devops-semantic-config`
+
+Current implementation detail:
+- runtime search access in `AzureSearchService` supports `DefaultAzureCredential` with optional API key fallback
+- index creation in `SearchIndexManager` currently uses `AzureSearch:ApiKey`
+
+---
+
+## Shared services from Core used by Impact Analyzer
+
+### `BSolution.Netwise.UsefulAI.Core/Services`
+- `AzureDevOpsService`
+- `AzureSearchService`
+- `EmbeddingService`
+- `WorkItemQueryService`
+
+### `BSolution.Netwise.UsefulAI.Core/Stores`
+- `BlobMessageStore`
+- `SettingsStore`
+- `BlobPathHelpers`
+
+### `BSolution.Netwise.UsefulAI.Core/Configuration`
+- `CoreServicesRegistration.AddUsefulAICoreServices()`
+
+Impact Analyzer wires these shared services in `AddImpactAnalyzerTools()` and adds its own app-specific registrations on top.
+
+---
+
+## Configuration
+
+### App settings used by Impact Analyzer
+
+#### Foundry
+- `Foundry:Endpoint`
+
+#### Pipeline model selection
+- `Pipeline:ResearcherModel`
+- `Pipeline:WriterModel`
+- `Pipeline:EditorModel`
+- `Pipeline:SenderModel`
+
+#### Azure OpenAI
+- `AzureOpenAI:Endpoint`
+- `AzureOpenAI:EmbeddingDeployment`
+- optional local fallback: `AzureOpenAI:ApiKey`
+
+#### Azure AI Search
+- `AzureSearch:Endpoint`
+- currently required for index bootstrap: `AzureSearch:ApiKey`
+
+#### Azure DevOps
+- `AzureDevOps:Organization`
+- `AzureDevOps:Project`
+- `AzureDevOps:PersonalAccessToken`
+
+#### Azure Functions / shared Azure resources
+- `AzureWebJobsStorage` or `AzureWebJobsStorage__accountName`
+- `ServiceBus__fullyQualifiedNamespace`
+
+### Storage and settings conventions
+
+- claim-check blob container: `messages`
+- report blob container: `reports`
+- settings table: `Settings`
+- work item watermark key: `indexer.workitems.lastSync`
+- WIKI watermark key: `indexer.wiki.lastSync`
+
+Watermarks store the run start timestamp so incremental runs do not miss changes that happen during processing.
+
+---
+
+## Solution structure relevant to Impact Analyzer
+
+```text
+BSolution.Netwise.UsefulAI.Core/
+├── Configuration/
+├── Models/
+├── Services/
+└── Stores/
+
+BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/
+├── Configs/
+├── Functions/
+├── Indexing/
+│   └── Messages/
+├── Models/
+├── Stores/
+├── Tools/
+│   ├── Research/
+│   ├── Sender/
+│   └── Writer/
+├── AgentPrompts.cs
+├── ImpactAnalysisPipeline.cs
+├── Program.cs
+├── appsettings.json
+└── host.json
+
+BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/
+└── src/
 ```
 
-### Function App settings (set by `functionapp.bicep`)
+---
 
-| Setting | Value | Purpose |
-|---|---|---|
-| `ServiceBus__fullyQualifiedNamespace` | `<ns>.servicebus.windows.net` | Keyless SB auth |
-| `AzureWebJobsStorage__accountName` | `<storage-account-name>` | Functions runtime state **AND** shared by `IBlobMessageStore` (container `messages`), `IReportStore` (container `reports`) and `ISettingsStore` (table `Settings`) — single keyless storage account for everything |
+## Important implementation notes
 
-> Use `dotnet user-secrets` locally. Use **Azure Key Vault** in production for secrets.
+- `Program.cs` creates `AIProjectClient` with `DefaultAzureCredential`
+- `ToolsConfig.cs` calls `AddUsefulAICoreServices()` and then registers Impact Analyzer-specific services
+- `ImpactAnalysisPipeline.RunAsync()` currently returns the approved report and does not invoke `RunSenderAsync()`
+- Service Bus throttling is configured in `host.json` with:
+  - `maxConcurrentCalls = 4`
+  - `prefetchCount = 8`
+  - `maxAutoLockRenewalDuration = 01:05:00`
+- `WorkItemQueryService` uses WIQL and day-level date precision for incremental queries
+- `ReportStore` and claim-check storage reuse the Functions storage account
 
 ---
 
-## 📋 Key Data Models
+## Current HTTP entry points
 
-```csharp
-// All defined in Models/PipelineModels.cs
+### `GenerateWorkItemReportFunction`
+- route: `POST /api/workitems/{workItemId}/report`
+- auth level: `Function`
+- behavior:
+  - validates ID
+  - fetches work item details from Azure DevOps
+  - maps to `WorkItemEvent`
+  - runs the impact analysis pipeline
+  - saves the markdown report
+  - returns `text/markdown`
 
-// Output of Researcher agent (structured JSON)
-record ResearchFindings(
-    WorkItemRef AnalyzedItem,
-    List<RelatedWorkItem> RelatedWorkItems,   // PotentialRelationType: CONFLICT|DEPENDENCY|RELATED
-    List<RelatedWikiPage> RelatedWikiPages,
-    List<string> SearchQueriesUsed
-);
+### `GetWorkItemReportFunction`
+- route: `GET /api/workitems/{workItemId}/report`
+- auth level: `Function`
+- behavior:
+  - validates ID
+  - loads the stored report from `IReportStore`
+  - returns `404` when missing
+  - returns `text/markdown` when found
 
-// Editor decision after reviewing Writer's report
-record EditorDecision(bool IsApproved, string? Feedback);
-
-// Triggered work item payload (built from DevOps fetch inside GenerateWorkItemReportFunction)
-record WorkItemEvent(int Id, string Type, string Title, string Description,
-                     string AcceptanceCriteria, string AreaPath, string Tags);
-
-// DevOps REST API models (Models/DevOpsModels.cs)
-// WorkItemDetail  — Id, Title, Type, State, Description, AcceptanceCriteria,
-//                   AreaPath, IterationPath, Tags, Priority, AssignedTo,
-//                   CreatedDate, ChangedDate, Relations, Url
-// WikiPageDetail  — Id, Path, Content, RemoteUrl, GitItemPath, ETag
-// WikiInfo        — Id, Name, RemoteUrl, RepositoryId, MappedPath
-
-// Service Bus messages
-// BlobRefMessage                  { string BlobUri }        ← on SB for stages 2-4 (Claim-Check)
-// WorkItemIdsBatchMessage         { List<int> Ids }          ← plain (stage 1 WI)
-// WikiPageRefMessage              { string WikiId, WikiName, Path } ← plain (stage 1 WIKI)
-
-// Blob payload types (JSON, stored in container "messages")
-// WorkItemDetailMessage           { WorkItemDetail WorkItem }
-// WikiPageContentMessage          { string WikiId, WikiName, WikiPageDetail Page }
-// List<WorkItemIndexDocument>     — all chunks for one WI
-// List<WikiIndexDocument>         — all chunks for one WIKI page
-
-// Runtime config (Azure Tables, Models/SettingEntity.cs)
-// SettingEntity                    { string PartitionKey="settings", string RowKey, string? Value (JSON) }
-// SettingKeys.WorkItemsLastSync   = "indexer.workitems.lastSync"
-// SettingKeys.WikiLastSync        = "indexer.wiki.lastSync"
-```
+### `HttpTestFunction`
+- ad-hoc development endpoint for manual testing
 
 ---
 
-## ✅ What Is Already Implemented
+## Notes for future changes
 
-### Core Pipeline
-1. **Multi-agent pipeline** (`ImpactAnalysisPipeline.cs`) — Researcher → Writer → Editor (max 2 retries) → Sender
-2. **Agent system prompts** (`AgentPrompts.cs`) — defined for all 4 agents
-3. **ResearchTools** — `SearchWorkItemsTool` (semantic/hybrid), `KeywordSearchWorkItemsTool` (native BM25/Lucene), `SearchWikiTool`, `GetWorkItemDetailsTool`, `GetWikiPageDetailsTool`
-4. **SenderTools** — `PostCommentTool`
-4a. **WriterTools** — `GetCurrentDate` (provides current date for report timestamps)
-5. **HTTP entry points**
-6. **HttpTestFunction** — ad-hoc endpoint for manually invoking tools during dev
-
-### Shared Services
-7. **EmbeddingService** — `float[]` vectors via text-embedding-3-large (AIProjectClient)
-8. **AzureSearchService** — hybrid search (vector HNSW + BM25 + semantic reranker, score threshold)
-9. **AzureDevOpsService** — DevOps REST API v7.1 wrapper (batch GET, WIQL, native Work Item Search, comments, wiki list/pages); registered as `HttpClient` with `AddStandardResilienceHandler`
-10. **BlobMessageStore** (`IBlobMessageStore` in `Stores/`) — upload/download JSON blobs in container `messages`; `BlobPaths` static class generates all blob paths
-10a. **ReportStore** (`IReportStore` in `Stores/`) — saves/loads Impact Analysis markdown reports in container `reports` under deterministic name `{workItemId}.md` (latest report overwrites previous)
-11. **SettingsStore** (`ISettingsStore` in `Stores/`) — generic JSON key-value over Azure Tables (`Settings` table); used by indexer timer functions to persist last-sync watermarks
-12. **StringExtensions.SplitIntoChunks** — shared chunking helper with optional overlap fraction
-
-### Indexing — Service Bus + Claim-Check pipelines
-13. **Work Item pipeline** — 3 services + 4 functions; stages 2–4 use Claim-Check via `IBlobMessageStore`
-14. **WIKI pipeline** — 3 services + 4 functions; identical Claim-Check pattern; **incremental sync** via Git Commits API (`searchCriteria.fromDate`) — only modified/new `.md` files are re-indexed each run; falls back to full sync on first run or when Git repo metadata is unavailable
-15. **Blob payloads are unbounded** — eliminates 256 KB SB Standard limit; handles large Epics, multi-MB WIKI pages
-16. **SearchIndexManager** (`IHostedService`) — creates `work-items-index` + `wiki-pages-index` on startup (HNSW cosine, 3072 dims, `devops-semantic-config`)
-17. **`host.json`** — `maxConcurrentCalls = 4`, `prefetchCount = 8`
-
-### Infrastructure & Config
-18. **DI registration** (`Configs/ToolsConfig.cs`) — registers all services incl. `IBlobMessageStore`, `IReportStore`, `ISettingsStore`, a shared `BlobServiceClient` (each store picks its own container: `messages`, `reports`) and a `TableClient` (`Settings`), all bound to the Functions runtime storage account via `DefaultAzureCredential`
-19. **`AgentToolAttribute`** — `[AgentTool(Description = "...")]`
-20. **Bicep IaC** — Function App, Service Bus (6 queues), AI stack, RBAC; app settings include `ServiceBus__fullyQualifiedNamespace` and `AzureWebJobsStorage__accountName`. MI roles: `Azure Service Bus Data Sender/Receiver`, `Storage Blob Data Owner`, `Storage Table Data Contributor`
-21. **Windows MAX_PATH workaround** — `ExtensionsCsProjDirectory=$(LOCALAPPDATA)\AzFuncWorkerExt\...` in csproj (Windows-only). Worker SDK disables `Directory.Build.props` for its generated `WorkerExtensions.csproj` — this is the only escape hatch.
-
----
-
-## 🔜 Next Steps
-
-### Integration Tests (MEDIUM priority)
-- `AzureDevOpsService` — test against a real DevOps project
-- `AzureSearchService` — hybrid search with sample documents
-- End-to-end pipeline test: publish to `workitem-ids` → assert blob created → assert AI Search indexed
-- Full agent pipeline test — mock `WorkItemEvent` → assert comment posted
-
-### Local Development (LOW priority)
-- `docker-compose.yml` with Azurite (Functions runtime + local Blob Storage emulation)
-- Populate `local.settings.json` with all connection settings
-- Seed script for AI Search indexes for offline pipeline testing
-
----
-
-## 💡 Coding Guidelines for This Project
-
-### Agents & tools
-- All agent tools must have `[AgentTool(Description = "...")]` — LLM uses it to decide when to call.
-- Tool methods are `async Task<string>` returning **JSON strings**.
-- Use `IConfiguration` for all settings — never hardcode endpoints or keys.
-- Register everything via DI in `ToolsConfig.AddImpactAnalyzerTools()`.
-
-### Indexing pipelines
-- **Each stage = one Function class.** Never call the next stage directly — always emit via `[ServiceBusOutput]`.
-- **Stages 2–4 use Claim-Check:** upload payload blob via `IBlobMessageStore`, put `BlobRefMessage { BlobUri }` on SB. Stage 1 queues (`workitem-ids`, `wiki-page-refs`) are small and skip Claim-Check.
-- **Blob paths** are generated by `BlobPaths` static class in `Stores/BlobMessageStore.cs`. Add new methods there for any new pipeline stage.
-- **Persist watermarks via `ISettingsStore`** (Azure Tables). Use a stable key under the `indexer.*` namespace; do NOT invent ad-hoc tables or blobs for tiny config values.
-- **Throttle via `host.json`** (`maxConcurrentCalls`), not `SemaphoreSlim`.
-- **Stage 2 (Fetch) returns `null`** on missing/broken data — prevents poison-message DLQ storms.
-- **Blobs are never deleted** by functions — use Azure Blob Lifecycle Management for cleanup.
-- **Reuse `StringExtensions.SplitIntoChunks`** for any new chunking logic instead of rewriting it.
-- Naming: `I{Domain}QueryService`, `I{Domain}DocumentBuilder`, `I{Domain}SearchUploader`.
-
-### Sizing
-max **6 000 chars** for WI (~1 500 tokens), max **4 500 chars** for WIKI (~1 125 tokens)
-- AI Search uploads: batch at max **500 documents** per `IndexDocumentsAsync` call.
-**100 IDs per `WorkItemIdsBatchMessage`** (DevOps batch GET limit)
-
-### Auth & secrets
-- **Keyless everywhere** — `DefaultAzureCredential` for OpenAI / AI Search / Service Bus / Blob / Tables / Foundry.
-- **One storage account for everything** — Functions runtime, Claim-Check blobs (`messages` container) and `Settings` table all share `AzureWebJobsStorage__accountName`. Do not introduce a second account.
-- DevOps PAT is the only key-based secret — Key Vault in Azure, `dotnet user-secrets` locally.
+When updating Impact Analyzer:
+- keep one Function class per pipeline stage
+- do not call downstream stages directly
+- keep claim-check for stages 2-4 of indexing pipelines
+- prefer extending Core services instead of duplicating logic
+- register new services in `Configs/ToolsConfig.cs`
+- keep configuration in `IConfiguration`
+- do not hardcode endpoints, queue names, container names, or secrets
+- keep changes scoped to Impact Analyzer unless a strictly necessary Core extraction is required
