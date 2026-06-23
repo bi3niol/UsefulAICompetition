@@ -1,4 +1,4 @@
-﻿# DevOps Impact Analyzer
+﻿# Business Overview
 
 DevOps Impact Analyzer to rozwiązanie stworzone dla zespołów, które rozwijają systemy przez lata i potrzebują szybkiego dostępu do kontekstu zmian przed rozpoczęciem implementacji. 🚀
 
@@ -55,14 +55,19 @@ DevOps Impact Analyzer jest aplikacją .NET 10 Azure Functions wykorzystującą 
 - 🔎 **Researcher** – prowadzi szerokie badanie kontekstu w DevOps i WIKI,
 - ✍️ **Writer** – buduje uporządkowany raport markdown,
 - 🧪 **Editor** – sprawdza kompletność i jakość merytoryczną,
-- 📤 **Sender** – przygotowuje wynik do publikacji w Azure DevOps.
+- 📤 ~~**Sender** – przygotowuje wynik do publikacji w Azure DevOps.~~
 
 🧩 Gotowy raport jest prezentowany **bezpośrednio w Azure DevOps, w kontekście konkretnego work itemu**, za pomocą dedykowanej wtyczki do przeglądarki (Chrome/Edge). Dzięki temu użytkownik nie przełącza się między narzędziami i od razu widzi pełny kontekst analizy.
+
+### 🎬 Demo video
+
+[![▶ Zobacz krótkie demo działania](https://img.youtube.com/vi/QQDeOF03B40/hqdefault.jpg)](https://www.youtube.com/watch?v=QQDeOF03B40)
 
 W zależności od typu work itemu system generuje:
 
 - 📄 **raport impact analysis** (dla wymagań, User Stories, Feature, Task),
-- 🩺 **raport diagnozy błędu** (dla Bugów, z naciskiem na podobne incydenty i możliwe przyczyny źródłowe).
+- 🩺 **raport diagnozy błędu** (dla Bugów, z naciskiem na podobne incydenty i możliwe przyczyny źródłowe),
+- 🌐 **raport w języku analizowanego itemu** (język treści raportu jest automatycznie dopasowany do języka work itemu).
 
 ---
 
@@ -79,3 +84,11 @@ W zależności od typu work itemu system generuje:
 ## 🧭 Najkrócej
 
 DevOps Impact Analyzer zamienia rozproszoną wiedzę projektową w **konkretny, gotowy do użycia raport decyzyjny**. Dzięki temu zespoły podejmują lepsze decyzje wcześniej — zanim koszt zmian zacznie rosnąć. 💡
+
+---
+
+## 🔗 Linki
+
+- 📘 [DevOps Impact Analyzer App](./BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/README.md)
+  - 🗺️ [Solution diagrams](./BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.App/docs/solution-diagrams.md)
+- 🧩 [DevOps Impact Analyzer Extension](./BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/README.md)

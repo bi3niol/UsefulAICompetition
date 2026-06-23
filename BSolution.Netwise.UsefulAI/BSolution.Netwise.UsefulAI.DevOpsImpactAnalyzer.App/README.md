@@ -601,6 +601,12 @@ BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/
 
 ---
 
+## 🔗 Diagrams
+
+- 🗺️ [Solution diagrams](./docs/solution-diagrams.md)
+
+---
+
 ## Notes for future changes
 
 When updating Impact Analyzer:
