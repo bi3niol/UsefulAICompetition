@@ -11,16 +11,16 @@ using Microsoft.Extensions.Http.Resilience;
 namespace BSolution.Netwise.UsefulAI.Core.Configuration;
 
 /// <summary>
-/// Wspólna rejestracja zależności współdzielonych przez wszystkie aplikacje
-/// (Impact Analyzer, Wiki Doc Generator, ...). Obejmuje klientów Azure
-/// (Blob, Table), serwisy <c>Embedding</c>/<c>Search</c>/<c>DevOps</c>
-/// oraz claim-check store i settings store.
+/// Shared dependency registration for all applications
+/// (Impact Analyzer, Wiki Doc Generator, ...). Covers Azure clients
+/// (Blob, Table), <c>Embedding</c>/<c>Search</c>/<c>DevOps</c> services,
+/// and the claim-check store and settings store.
 /// </summary>
 /// <remarks>
-/// Korzysta z <c>AzureWebJobsStorage</c> (to samo konto co Functions runtime)
-/// i <c>DefaultAzureCredential</c> (keyless). Obsługuje fallback dla Azurite
-/// (<c>UseDevelopmentStorage=true</c>) i ApiKey dla AzureSearch/AzureOpenAI
-/// w testach lokalnych.
+/// Uses <c>AzureWebJobsStorage</c> (same account as the Functions runtime)
+/// and <c>DefaultAzureCredential</c> (keyless). Supports fallback for Azurite
+/// (<c>UseDevelopmentStorage=true</c>) and ApiKey for AzureSearch/AzureOpenAI
+/// in local tests.
 /// </remarks>
 public static class CoreServicesRegistration
 {

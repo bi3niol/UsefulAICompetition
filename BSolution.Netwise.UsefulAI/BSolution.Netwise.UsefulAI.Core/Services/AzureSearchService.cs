@@ -22,7 +22,7 @@ public interface IAzureSearchService
 
 public class AzureSearchService : IAzureSearchService
 {
-    // SearchClient jest thread-safe — reużywamy instancje per indexName zamiast tworzyć per wywołanie
+    // SearchClient is thread-safe — we reuse instances per indexName instead of creating per call
     private readonly ConcurrentDictionary<string, SearchClient> _clients = new();
     private readonly Uri _endpoint;
     private readonly SearchClientOptions _clientOptions;
@@ -37,8 +37,8 @@ public class AzureSearchService : IAzureSearchService
         _endpoint = new Uri(config["AzureSearch:Endpoint"]!);
         _clientOptions = new SearchClientOptions();
 
-        // Keyless (DefaultAzureCredential) — wymaga roli "Search Index Data Reader" na MI.
-        // Fallback na ApiKey jeśli skonfigurowany (lokalne testy bez MI).
+        // Keyless (DefaultAzureCredential) — requires the "Search Index Data Reader" role on the MI.
+        // Fall back to ApiKey if configured (local tests without MI).
         var apiKey = config["AzureSearch:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
             _tokenCredential = new DefaultAzureCredential();
@@ -64,7 +64,7 @@ public class AzureSearchService : IAzureSearchService
             Filter = filter,
             Size = top,
 
-            // Wymagane, aby SemanticSearch (caption/answer/reranker) zadziałał
+            // Required for SemanticSearch (caption/answer/reranker) to work
             QueryType = SearchQueryType.Semantic,
 
             // Hybrid search: vector + keyword (BM25) + semantic reranker
@@ -75,12 +75,12 @@ public class AzureSearchService : IAzureSearchService
                     new VectorizedQuery(vector)
                     {
                         Fields = { VectorField },
-                        KNearestNeighborsCount = top * 2  // pobieramy więcej, filtrujemy po score
+                        KNearestNeighborsCount = top * 2  // fetch more, filter by score
                     }
                 }
             },
 
-            // Semantic reranker — poprawia ranking wyników
+            // Semantic reranker — improves result ranking
             SemanticSearch = new SemanticSearchOptions
             {
                 SemanticConfigurationName = SemanticConfig,
@@ -88,18 +88,18 @@ public class AzureSearchService : IAzureSearchService
                 QueryAnswer = new QueryAnswer(QueryAnswerType.Extractive)
             },
 
-            // Projekcja wyłączona — oba indeksy mają różne pola, Select spowodowałby błąd
-            // dla pól nieistniejących w danym indeksie
+            // Projection disabled — both indexes have different fields; Select would cause an error
+            // for fields that do not exist in a given index
         };
 
-        // Uruchamiamy hybrid search (keyword query pusta = tylko vector + semantic)
+        // Run hybrid search (empty keyword query = vector + semantic only)
         var response = await client.SearchAsync<SearchDocument>("*", searchOptions, ct);
 
         var results = new List<SearchResultItem>();
 
         await foreach (var result in response.Value.GetResultsAsync())
         {
-            // Filtrujemy wyniki poniżej progu podobieństwa
+            // Filter out results below the similarity threshold
             var score = result.Score ?? 0;
             if (score < minScore) continue;
 

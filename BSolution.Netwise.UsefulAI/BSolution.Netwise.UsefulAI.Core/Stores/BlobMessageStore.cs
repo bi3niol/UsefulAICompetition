@@ -5,27 +5,27 @@ using System.Text.Json;
 namespace BSolution.Netwise.UsefulAI.Core.Stores;
 
 /// <summary>
-/// Serwis do przechowywania dużych payloadów wiadomości w Blob Storage (Claim-Check Pattern).
-/// Container: <c>messages</c>. Subfolders per typ wiadomości — patrz <see cref="BlobPaths"/>.
+/// Service for storing large message payloads in Blob Storage (Claim-Check Pattern).
+/// Container: <c>messages</c>. Subfolders per message type — see <see cref="BlobPaths"/>.
 /// </summary>
 public interface IBlobMessageStore
 {
-    /// <summary>Serializuje payload do JSON, wgrywa bloba i zwraca jego pełny URI.</summary>
+    /// <summary>Serializes payload to JSON, uploads the blob and returns its full URI.</summary>
     Task<string> UploadAsync<T>(string blobPath, T payload, CancellationToken ct = default);
 
-    /// <summary>Pobiera bloba z podanego URI i deserializuje do <typeparamref name="T"/>.</summary>
+    /// <summary>Downloads the blob from the given URI and deserializes it to <typeparamref name="T"/>.</summary>
     Task<T> DownloadAsync<T>(string blobUri, CancellationToken ct = default);
 }
 
 public class BlobMessageStore : IBlobMessageStore
 {
-    /// <summary>Nazwa kontenera dla wszystkich payloadów Claim-Check Pattern.</summary>
+    /// <summary>Container name for all Claim-Check Pattern payloads.</summary>
     public const string ContainerName = "messages";
 
     private readonly BlobContainerClient _container;
     private readonly ILogger<BlobMessageStore> _logger;
 
-    // Lazy guard — CreateIfNotExists jest idempotentne, ale nie potrzeba go przy każdym upload.
+    // Lazy guard — CreateIfNotExists is idempotent, but there is no need to call it on every upload.
     private int _containerReady;
 
     public BlobMessageStore(BlobServiceClient blobServiceClient, ILogger<BlobMessageStore> logger)
@@ -48,9 +48,9 @@ public class BlobMessageStore : IBlobMessageStore
 
     public async Task<T> DownloadAsync<T>(string blobUri, CancellationToken ct = default)
     {
-        // Wyciągamy nazwę bloba z pełnego URI względem URI kontenera —
-        // ta sama instancja credential co przy upload, bez tworzenia nowego BlobClient.
-        // Podejście przez _container.Uri działa zarówno dla Azurite jak i produkcji.
+        // Extract the blob name from the full URI relative to the container URI —
+        // same credential instance as at upload time, no new BlobClient needed.
+        // Using _container.Uri works for both Azurite and production.
         var blobName = blobUri.Substring(_container.Uri.ToString().Length).TrimStart('/');
         var blob = _container.GetBlobClient(blobName);
         var response = await blob.DownloadContentAsync(ct);

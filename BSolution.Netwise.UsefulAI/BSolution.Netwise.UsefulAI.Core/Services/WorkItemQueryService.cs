@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging;
 namespace BSolution.Netwise.UsefulAI.Core.Services;
 
 /// <summary>
-/// Pobiera listę ID work itemów do (re)przetwarzania przez zapytanie WIQL.
-/// Obsługuje tryb pełny (since == null) i przyrostowy (since != null).
+/// Fetches the list of work item IDs for (re)processing via a WIQL query.
+/// Supports full mode (since == null) and incremental mode (since != null).
 /// </summary>
 public interface IWorkItemQueryService
 {
@@ -12,10 +12,10 @@ public interface IWorkItemQueryService
 }
 
 /// <summary>
-/// Generyczna implementacja <see cref="IWorkItemQueryService"/> sparametryzowana
-/// listą typów work itemów do filtrowania. Każda aplikacja rejestruje własną
-/// instancję — np. Impact Analyzer chce wszystkie typy łącznie z Tasks/Bugs,
-/// a Wiki Doc Generator tylko Feature/Epic/User Story/PBI.
+/// Generic implementation of <see cref="IWorkItemQueryService"/> parameterized by
+/// a list of work item types to filter by. Each application registers its own
+/// instance — e.g. Impact Analyzer wants all types including Tasks/Bugs,
+/// while Wiki Doc Generator only wants Feature/Epic/User Story/PBI.
 /// </summary>
 public class WorkItemQueryService : IWorkItemQueryService
 {
@@ -57,10 +57,10 @@ public class WorkItemQueryService : IWorkItemQueryService
     {
         var types = string.Join(", ", _workItemTypes.Select(t => $"'{t}'"));
 
-        // WIQL używa precyzji dziennej dla pól daty — nie wolno podawać godziny.
-        // Odejmujemy 1 dzień, by nie zgubić elementów zmienionych tego samego dnia
-        // co poprzednia synchronizacja (drobne duplikaty są filtrowane przez konsumentów,
-        // np. Impact Analyzer MergeOrUpload, Wiki Doc Generator ETag-i).
+        // WIQL uses day-level precision for date fields — time component must not be included.
+        // We subtract 1 day to avoid missing items changed on the same day as the previous
+        // synchronization (minor duplicates are filtered by consumers,
+        // e.g. Impact Analyzer MergeOrUpload, Wiki Doc Generator ETags).
         var sinceClause = since.HasValue
             ? $"AND [System.ChangedDate] >= '{since.Value.Date.AddDays(-1):yyyy-MM-dd}'"
             : string.Empty;

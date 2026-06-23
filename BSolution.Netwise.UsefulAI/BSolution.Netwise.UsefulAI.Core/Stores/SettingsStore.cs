@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace BSolution.Netwise.UsefulAI.Core.Stores;
 
 /// <summary>
-/// Generyczny key-value store oparty o Azure Tables (tabela <c>Settings</c>).
-/// Wartości są serializowane jako JSON, więc obsługiwany jest dowolny typ
-/// serializowalny przez <see cref="JsonSerializer"/>.
+/// Generic key-value store backed by Azure Tables (table <c>Settings</c>).
+/// Values are serialized as JSON, so any type serializable by <see cref="JsonSerializer"/>
+/// is supported.
 /// </summary>
 public interface ISettingsStore
 {

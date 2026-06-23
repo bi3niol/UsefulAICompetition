@@ -46,13 +46,13 @@ public class ImpactAnalysisPipeline
         var isBug = workItem.Type.Equals("Bug", StringComparison.OrdinalIgnoreCase);
         _logger.LogInformation("[PIPELINE] Starting analysis for WI#{WorkItemId} (Type: {Type})", workItem.Id, workItem.Type);
 
-        // KROK 1: Researcher zbiera dane
+        // STEP 1: Researcher collects data
         var findings = await RunResearcherAsync(workItem, isBug);
 
-        // KROK 2 + 3: Writer pisze › Editor ocenia (z mo¿liwoœci¹ iteracji)
+        // STEP 2 + 3: Writer writes — Editor reviews (with possible iterations)
         var approvedReport = await RunWriterEditorLoopAsync(workItem, findings, isBug);
 
-        // KROK 4: Sender wy³¹czony — raport zwracany do wywo³uj¹cego
+        // STEP 4: Sender disabled — report returned to the caller
         _logger.LogInformation("[PIPELINE] Analysis complete for WI#{WorkItemId}", workItem.Id);
 
         return approvedReport;
@@ -101,12 +101,12 @@ public class ImpactAnalysisPipeline
 
         do
         {
-            // WRITER: produkuje raport
+            // WRITER: generates report
             _logger.LogInformation("[WRITER] Generating report (attempt {Attempt})...", retries + 1);
             report = await RunWriterAsync(workItem, findings, isBug,
                 previousFeedback: decision?.Feedback);
 
-            // EDITOR: ocenia raport
+            // EDITOR: reviews report
             _logger.LogInformation("[EDITOR] Reviewing report...");
             decision = await RunEditorAsync(workItem, findings, report, isBug);
 
@@ -119,7 +119,7 @@ public class ImpactAnalysisPipeline
 
         if (!decision.IsApproved)
         {
-            // Po max retry — u¿yj ostatniego raportu z adnotacj¹
+            // After max retries — use the last draft report with a note
             _logger.LogWarning("[EDITOR] Max retries reached, using last draft.");
             report = $"> ?? Note: Report may be incomplete.\n\n{report}";
         }

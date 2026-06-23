@@ -3,12 +3,12 @@ namespace BSolution.Netwise.UsefulAI.Core.Extensions;
 public static class StringExtensions
 {
     /// <summary>
-    /// Dzieli tekst na chunki po granicy słowa z opcjonalnym overlappem między sąsiednimi chunkami.
-    /// Overlap zapobiega utracie kontekstu na granicy chunków podczas wyszukiwania wektorowego.
+    /// Splits text into chunks on word boundaries with optional overlap between adjacent chunks.
+    /// Overlap prevents context loss at chunk boundaries during vector search.
     /// </summary>
-    /// <param name="text">Tekst do podzielenia.</param>
-    /// <param name="maxChars">Maksymalna długość chunka w znakach.</param>
-    /// <param name="overlapFraction">Udział overlapa jako ułamek maxChars (0.0 = brak, 0.15 = 15%).</param>
+    /// <param name="text">Text to split.</param>
+    /// <param name="maxChars">Maximum chunk length in characters.</param>
+    /// <param name="overlapFraction">Overlap share as a fraction of maxChars (0.0 = none, 0.15 = 15%).</param>
     public static List<string> SplitIntoChunks(this string text, int maxChars, double overlapFraction = 0)
     {
         if (text.Length <= maxChars) return [text];
@@ -25,19 +25,19 @@ public static class StringExtensions
                 break;
             }
 
-            // Szukamy granicy słowa w obrębie maxChars
+            // Search for a word boundary within maxChars
             var slice = text.AsSpan(pos, maxChars);
             var lastSpace = slice.LastIndexOf(' ');
             var cutAt = lastSpace > 0 ? lastSpace : maxChars;
 
             chunks.Add(text.Substring(pos, cutAt));
 
-            // Cofamy się o overlap, żeby kolejny chunk zaczął się z kontekstem
+            // Step back by overlap so the next chunk starts with context
             var advance = cutAt - overlapChars;
-            if (advance <= 0) advance = cutAt; // zabezpieczenie przed nieskończoną pętlą
+            if (advance <= 0) advance = cutAt; // guard against infinite loop
             pos += advance;
 
-            // Pomijamy białe znaki na początku następnego chunka
+            // Skip leading whitespace at the start of the next chunk
             while (pos < text.Length && text[pos] == ' ') pos++;
         }
 

@@ -1,4 +1,4 @@
-using BSolution.Netwise.UsefulAI.Core.Models;
+ï»¿using BSolution.Netwise.UsefulAI.Core.Models;
 using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Net.Http.Headers;
@@ -15,37 +15,37 @@ public interface IAzureDevOpsService
     Task<string> AddCommentAsync(int workItemId, string comment, CancellationToken ct = default);
     Task<WikiPageDetail> GetWikiPageAsync(string wikiId, string pagePath, CancellationToken ct = default);
 
-    /// <summary>Wykonuje zapytanie WIQL i zwraca listê ID work itemów.</summary>
+    /// <summary>Executes a WIQL query and returns a list of work item IDs.</summary>
     Task<List<int>> QueryWorkItemIdsAsync(string wiql, CancellationToken ct = default);
 
-    /// <summary>Pobiera szczegó³y wielu work itemów w jednym ¿¹daniu (max 200 ID).</summary>
+    /// <summary>Retrieves details of multiple work items in a single request (max 200 IDs).</summary>
     Task<List<WorkItemDetail>> GetWorkItemsBatchAsync(IEnumerable<int> ids, CancellationToken ct = default);
 
-    /// <summary>Pobiera komentarze dla pojedynczego work itemu (osobny endpoint w DevOps API).</summary>
+    /// <summary>Retrieves comments for a single work item (separate endpoint in DevOps API).</summary>
     Task<List<WorkItemComment>> GetWorkItemCommentsAsync(int workItemId, CancellationToken ct = default);
 
-    /// <summary>Zwraca listê wszystkich wiki w projekcie.</summary>
+    /// <summary>Returns the list of all wikis in the project.</summary>
     Task<List<WikiInfo>> GetWikiListAsync(CancellationToken ct = default);
 
-    /// <summary>Zwraca pe³n¹, sp³aszczon¹ listê œcie¿ek stron wiki (bez treœci).</summary>
+    /// <summary>Returns a full, flattened list of wiki page paths (without content).</summary>
     Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default);
 
     /// <summary>
-    /// Zwraca œcie¿ki stron wiki zmodyfikowanych lub dodanych po <paramref name="since"/>.
-    /// U¿ywa Git Commits API (searchCriteria.fromDate) na repozytorium podpieraj¹cym wiki.
-    /// Zwraca <c>null</c> jako sygna³ do fallbacku na pe³n¹ synchronizacjê — mo¿e wyst¹piæ gdy
-    /// <c>repositoryId</c> nie zosta³o zwrócone przez API lub PAT nie ma uprawnieñ Repos (Read).
+    /// Returns wiki page paths that were modified or added after <paramref name="since"/>.
+    /// Uses the Git Commits API (searchCriteria.fromDate) on the repository backing the wiki.
+    /// Returns <c>null</c> as a signal to fall back to a full synchronization â€” may occur when
+    /// <c>repositoryId</c> was not returned by the API or the PAT lacks Repos (Read) permissions.
     /// </summary>
     Task<List<string>?> GetChangedWikiPagePathsAsync(WikiInfo wiki, DateTimeOffset since, CancellationToken ct = default);
 
     /// <summary>
-    /// Wyszukuje work itemy u¿ywaj¹c natywnego DevOps Work Item Search API
-    /// (Lucene query syntax — fuzzy, wildcards, field-scoped, boolean ops, BM25).
+    /// Searches work items using the native DevOps Work Item Search API
+    /// (Lucene query syntax â€” fuzzy, wildcards, field-scoped, boolean ops, BM25).
     /// </summary>
-    /// <param name="searchText">Query w sk³adni Lucene (np. "authentication~" lub "title:login AND state:Active").</param>
-    /// <param name="filters">Filtry per pole DevOps. Klucze: System.WorkItemType, System.State, System.AreaPath, System.AssignedTo, System.Tags.</param>
-    /// <param name="top">Maks. liczba wyników (1-1000).</param>
-    /// <param name="skip">Offset paginacji.</param>
+    /// <param name="searchText">Query in Lucene syntax (e.g. "authentication~" or "title:login AND state:Active").</param>
+    /// <param name="filters">Per-field DevOps filters. Keys: System.WorkItemType, System.State, System.AreaPath, System.AssignedTo, System.Tags.</param>
+    /// <param name="top">Max number of results (1-1000).</param>
+    /// <param name="skip">Pagination offset.</param>
     Task<List<WorkItemSearchHit>> SearchWorkItemsByKeywordsAsync(
         string searchText,
         IReadOnlyDictionary<string, string[]>? filters = null,
@@ -53,49 +53,49 @@ public interface IAzureDevOpsService
         int skip = 0,
         CancellationToken ct = default);
 
-    // ?? Repos / Pull Requests ???????????????????????????????????????????????
+    // ?? Repos / Pull Requests 
 
-    /// <summary>Zwraca listê wszystkich repozytoriów Git w projekcie.</summary>
+    /// <summary>Returns the list of all Git repositories in the project.</summary>
     Task<List<GitRepositoryInfo>> GetRepositoriesAsync(CancellationToken ct = default);
 
-    /// <summary>Pobiera szczegó³y PR po jego ID i nazwie/ID repozytorium.</summary>
+    /// <summary>Retrieves PR details by its ID and repository name/ID.</summary>
     Task<PullRequestDetail?> GetPullRequestAsync(string repositoryId, int pullRequestId, CancellationToken ct = default);
 
-    /// <summary>Lista zmian plikowych w PR (add/edit/delete/rename) wzglêdem branch'a docelowego.</summary>
+    /// <summary>List of file changes in a PR (add/edit/delete/rename) relative to the target branch.</summary>
     Task<List<PullRequestChange>> GetPullRequestChangesAsync(string repositoryId, int pullRequestId, CancellationToken ct = default);
 
-    /// <summary>Work itemy powi¹zane z PR (linki do work items w opisie / commitach).</summary>
+    /// <summary>Work items linked to a PR (links in description / commits).</summary>
     Task<List<int>> GetPullRequestWorkItemIdsAsync(string repositoryId, int pullRequestId, CancellationToken ct = default);
 
-    /// <summary>Pobiera zawartoœæ pliku z repo na konkretnym commicie (null jeœli plik usuniêty/nieobecny).</summary>
+    /// <summary>Retrieves the content of a file from a repo at a specific commit (null if deleted/absent).</summary>
     Task<string?> GetFileContentAsync(string repositoryId, string path, string? commitId = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Pobiera zawartoœæ pliku z repo z konkretnej GA£ÊZI (HEAD) — u¿ywane przez skan kodu,
-    /// który zawsze pracuje na ustalonej w konfigu ga³êzi (np. <c>main</c>).
-    /// Zwraca <c>null</c> gdy plik nie istnieje na danej ga³êzi.
+    /// Retrieves file content from a repo at a specific BRANCH (HEAD) â€” used by code scan,
+    /// which always reads from the branch fixed in config (e.g. <c>main</c>).
+    /// Returns <c>null</c> when the file does not exist on the given branch.
     /// </summary>
     Task<string?> GetFileContentOnBranchAsync(string repositoryId, string path, string branch, CancellationToken ct = default);
 
-    /// <summary>Lista plików/folderów w repo na zadanej œcie¿ce (rekursywnie jeœli <paramref name="recursive"/>).</summary>
+    /// <summary>List of files/folders in a repo at the given path (recursively if <paramref name="recursive"/>).</summary>
     Task<List<GitItem>> GetRepositoryItemsAsync(string repositoryId, string path = "/", bool recursive = false, string? commitId = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Lista plików/folderów w repo z konkretnej GA£ÊZI (HEAD). Wersja u¿ywana przez skan kodu —
-    /// nie wymaga znajomoœci SHA commit-a, czyta zawsze szczyt zadanej ga³êzi.
+    /// List of files/folders in a repo from a specific BRANCH (HEAD). Used by code scan â€”
+    /// does not require knowing the commit SHA, always reads the tip of the given branch.
     /// </summary>
     Task<List<GitItem>> GetRepositoryItemsOnBranchAsync(string repositoryId, string branch, string path = "/", bool recursive = true, CancellationToken ct = default);
 
     /// <summary>
-    /// Zwraca SHA ostatniego commitu na zadanej ga³êzi. Pos³uguje siê <c>git/refs</c>
-    /// (filtr <c>filter=heads/{branch}</c>). Zwraca <c>null</c> jeœli ga³¹Ÿ nie istnieje.
+    /// Returns the SHA of the latest commit on the given branch. Uses <c>git/refs</c>
+    /// (filter <c>filter=heads/{branch}</c>). Returns <c>null</c> if the branch does not exist.
     /// </summary>
     Task<string?> GetLatestCommitShaAsync(string repositoryId, string branch, CancellationToken ct = default);
 
     /// <summary>
-    /// Zwraca listê zmian plikowych miêdzy dwoma commitami (<paramref name="baseSha"/> ? <paramref name="targetSha"/>).
-    /// U¿ywa Git <c>diffs/commits</c> API. Gdy <paramref name="baseSha"/> jest <c>null</c> zwraca <c>null</c>
-    /// — to sygna³ dla wywo³uj¹cego, ¿eby zrobiæ pe³ny skan drzewa.
+    /// Returns the list of file changes between two commits (<paramref name="baseSha"/> â†’ <paramref name="targetSha"/>).
+    /// Uses the Git <c>diffs/commits</c> API. When <paramref name="baseSha"/> is <c>null</c>, returns <c>null</c>
+    /// â€” this signals the caller to perform a full tree scan.
     /// </summary>
     Task<List<RepoFileChange>?> GetChangesBetweenCommitsAsync(
         string repositoryId, string? baseSha, string targetSha, CancellationToken ct = default);
@@ -103,9 +103,9 @@ public interface IAzureDevOpsService
     // ?? WIKI write ??????????????????????????????????????????????????????????
 
     /// <summary>
-    /// Tworzy now¹ stronê wiki lub aktualizuje istniej¹c¹ (PUT /wiki/wikis/{wikiId}/pages).
-    /// Jeœli strona istnieje wymagany jest <paramref name="eTag"/> (If-Match). Gdy <paramref name="eTag"/>
-    /// jest null, robi best-effort: spróbuje pobraæ aktualny ETag i ponownie zapisaæ.
+    /// Creates a new wiki page or updates an existing one (PUT /wiki/wikis/{wikiId}/pages).
+    /// If the page exists, <paramref name="eTag"/> (If-Match) is required. When <paramref name="eTag"/>
+    /// is null, performs best-effort: tries to fetch the current ETag and retries the write.
     /// </summary>
     Task<WikiPageWriteResult> CreateOrUpdateWikiPageAsync(
         string wikiId,
@@ -123,9 +123,9 @@ public class AzureDevOpsService : IAzureDevOpsService
     private readonly string _apiVersion = "7.1";
 
     /// <summary>
-    /// Search API (extension) jest hostowany pod osobnym subdomenem almsearch.dev.azure.com,
-    /// wiêc nie mo¿emy u¿yæ HttpClient.BaseAddress — wysy³amy z absolutnym URI.
-    /// PAT z domyœlnego nag³ówka Authorization dzia³a te¿ na tym hoœcie.
+    /// The Search API (extension) is hosted under a separate subdomain almsearch.dev.azure.com,
+    /// so we cannot use HttpClient.BaseAddress â€” we send with an absolute URI.
+    /// The PAT from the default Authorization header also works on that host.
     /// </summary>
     private readonly Uri _almSearchBaseUri;
 
@@ -147,7 +147,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         _almSearchBaseUri = new Uri($"https://almsearch.dev.azure.com/{_organization}/");
     }
 
-    // ¦¦ Work Items ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // Â¦Â¦ Work Items Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦
 
     public async Task<WorkItemDetail> GetWorkItemAsync(int id, CancellationToken ct = default)
     {
@@ -180,13 +180,13 @@ public class AzureDevOpsService : IAzureDevOpsService
     public async Task<List<WorkItemComment>> GetWorkItemCommentsAsync(
         int workItemId, CancellationToken ct = default)
     {
-        // Komentarze nie s¹ zwracane w $expand=all — wymagaj¹ osobnego endpointu (preview).
+        // Comments are not returned by $expand=all â€” they require a separate endpoint (preview).
         var url = $"{_project}/_apis/wit/workItems/{workItemId}/comments" +
                   $"?api-version={_apiVersion}-preview.4";
 
         var response = await _http.GetAsync(url, ct);
 
-        // Brak komentarzy lub starszy projekt bez wsparcia › traktujemy jako pust¹ listê
+        // No comments or older project without support â€” treat as empty list
         if (response.StatusCode == HttpStatusCode.NotFound)
             return [];
 
@@ -209,7 +209,7 @@ public class AzureDevOpsService : IAzureDevOpsService
             .ToList() ?? [];
     }
 
-    // ¦¦ WIQL ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // Â¦Â¦ WIQL Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦
 
     public async Task<List<int>> QueryWorkItemIdsAsync(string wiql, CancellationToken ct = default)
     {
@@ -255,7 +255,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         return result;
     }
 
-    // ¦¦ Work Item Search (Lucene/BM25, almsearch.dev.azure.com) ¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // Â¦Â¦ Work Item Search (Lucene/BM25, almsearch.dev.azure.com) Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦
 
     public async Task<List<WorkItemSearchHit>> SearchWorkItemsByKeywordsAsync(
         string searchText,
@@ -264,12 +264,12 @@ public class AzureDevOpsService : IAzureDevOpsService
         int skip = 0,
         CancellationToken ct = default)
     {
-        // Endpoint extension Search jest na osobnym hoœcie — u¿ywamy absolutnego URI.
+        // The Search extension endpoint is hosted on a separate host â€” use absolute URI.
         var url = new Uri(
             _almSearchBaseUri,
             $"{_project}/_apis/search/workitemsearchresults?api-version={_apiVersion}");
 
-        // DevOps Search wymaga zawsze filtra System.TeamProject — bez niego API zwraca 400.
+        // DevOps Search always requires the System.TeamProject filter â€” without it the API returns 400.
         var effectiveFilters = filters is null
             ? new Dictionary<string, string[]>()
             : new Dictionary<string, string[]>(filters);
@@ -293,7 +293,7 @@ public class AzureDevOpsService : IAzureDevOpsService
 
         using var response = await _http.SendAsync(req, ct);
 
-        // Search extension mo¿e byæ wy³¹czone w organizacji on-prem — traktujemy jako brak wyników.
+        // Search extension may be disabled in on-prem organizations â€” treat as no results.
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
             return [];
 
@@ -346,7 +346,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         };
     }
 
-    // ¦¦ WIKI ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // Â¦Â¦ WIKI Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦
 
     public async Task<WikiPageDetail> GetWikiPageAsync(
         string wikiId, string pagePath, CancellationToken ct = default)
@@ -357,13 +357,13 @@ public class AzureDevOpsService : IAzureDevOpsService
 
         var response = await _http.GetAsync(url, ct);
 
-        // Strony-kontenery (foldery) mog¹ nie mieæ treœci › 404 to nie b³¹d
+        // Container pages (folders) may have no content â€” 404 is not an error
         if (response.StatusCode == HttpStatusCode.NotFound)
             return new WikiPageDetail { Path = pagePath };
 
         response.EnsureSuccessStatusCode();
 
-        // ETag z nag³ówka HTTP — unikalny token wersji strony
+        // ETag from the HTTP header â€” unique version token of the page
         var eTag = response.Headers.ETag?.Tag;
         var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
 
@@ -405,18 +405,18 @@ public class AzureDevOpsService : IAzureDevOpsService
     {
         if (wiki.RepositoryId is null)
         {
-            // repositoryId nie zosta³o zwrócone przez API — fallback do pe³nej synchronizacji
+            // repositoryId was not returned by the API â€” fall back to full synchronization
             return null;
         }
 
-        // Git Commits API z fromDate — zwraca commity od podanej daty
+        // Git Commits API with fromDate â€” returns commits since the given date
         var fromDate = Uri.EscapeDataString(since.UtcDateTime.ToString("o"));
         var url = $"{_project}/_apis/git/repositories/{wiki.RepositoryId}/commits" +
                   $"?searchCriteria.fromDate={fromDate}&searchCriteria.itemPath=/&$top=1000&api-version={_apiVersion}";
 
         var response = await _http.GetAsync(url, ct);
 
-        // Brak repozytorium lub brak uprawnieñ › fallback do pe³nej synchronizacji
+        // No repository or insufficient permissions â€” fall back to full synchronization
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
             return null;
 
@@ -428,7 +428,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         if (commits.Count == 0)
             return [];
 
-        // Dla ka¿dego commitu pobieramy zmienione pliki
+        // For each commit, fetch the changed files
         var changedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var commit in commits)
@@ -449,8 +449,8 @@ public class AzureDevOpsService : IAzureDevOpsService
                 var itemPath = change["item"]?["path"]?.ToString();
                 if (itemPath is null) continue;
 
-                // Pliki wiki maj¹ rozszerzenie .md; konwertujemy œcie¿kê Git › œcie¿kê wiki
-                // (usuwamy mappedPath prefix i rozszerzenie .md)
+                // Wiki files have .md extension; convert Git path â€º wiki path
+                // (remove mappedPath prefix and .md extension)
                 var wikiPath = GitPathToWikiPath(itemPath, wiki.MappedPath);
                 if (wikiPath is not null)
                     changedPaths.Add(wikiPath);
@@ -461,8 +461,8 @@ public class AzureDevOpsService : IAzureDevOpsService
     }
 
     /// <summary>
-    /// Konwertuje œcie¿kê pliku Git na œcie¿kê wiki.
-    /// Np. "/wiki/Architecture/Overview.md" (mappedPath="/wiki") › "/Architecture/Overview".
+    /// Converts a Git file path to a wiki page path.
+    /// E.g. "/wiki/Architecture/Overview.md" (mappedPath="/wiki") â†’ "/Architecture/Overview".
     /// </summary>
     private static string? GitPathToWikiPath(string gitPath, string? mappedPath)
     {
@@ -474,14 +474,14 @@ public class AzureDevOpsService : IAzureDevOpsService
             ? gitPath[prefix.Length..]
             : gitPath;
 
-        // Usuñ rozszerzenie .md i zamieñ spacje-jako-myœlniki jeœli DevOps tak koduje
-        var wikiPath = relative[..^3]; // usuñ ".md"
+        // Remove .md extension
+        var wikiPath = relative[..^3];
         return string.IsNullOrEmpty(wikiPath) ? null : wikiPath;
     }
 
     public async Task<List<string>> GetWikiPagePathsAsync(string wikiId, CancellationToken ct = default)
     {
-        // recursionLevel=full zwraca pe³ne drzewo stron w jednym ¿¹daniu
+        // recursionLevel=full returns the full page tree in a single request
         var url = $"{_project}/_apis/wiki/wikis/{wikiId}/pages" +
                   $"?path=/&recursionLevel=full&includeContent=false&api-version={_apiVersion}";
 
@@ -495,14 +495,14 @@ public class AzureDevOpsService : IAzureDevOpsService
         return paths;
     }
 
-    /// <summary>Rekurencyjnie sp³aszcza drzewo stron wiki do listy œcie¿ek.</summary>
+    /// <summary>Recursively flattens the wiki page tree into a list of paths.</summary>
     private static void CollectPagePaths(JsonNode? node, List<string> paths)
     {
         if (node is null) return;
 
         var path = node["path"]?.GetValue<string>();
 
-        // Pomijamy root "/" — to wirtualny kontener, nie strona z treœci¹
+        // Skip root "/" â€” it is a virtual container, not a page with content
         if (path is not null && path != "/")
             paths.Add(path);
 
@@ -513,7 +513,7 @@ public class AzureDevOpsService : IAzureDevOpsService
             CollectPagePaths(subPage, paths);
     }
 
-    // ¦¦ Mapping ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // Â¦Â¦ Mapping Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦Â¦
 
     private WorkItemDetail MapWorkItemDetail(JsonObject json)
     {
@@ -618,8 +618,9 @@ public class AzureDevOpsService : IAzureDevOpsService
     public async Task<List<PullRequestChange>> GetPullRequestChangesAsync(
         string repositoryId, int pullRequestId, CancellationToken ct = default)
     {
-        // Iteracje PR — bierzemy najnowsz¹ i z niej listê zmian (PR Changes API).
+        // PR iterations â€” we take the latest one and read its change list (PR Changes API).
         var iterUrl = $"{_project}/_apis/git/repositories/{repositoryId}/pullrequests/{pullRequestId}/iterations" +
+
                       $"?api-version={_apiVersion}";
         var iterResp = await _http.GetAsync(iterUrl, ct);
 
@@ -646,7 +647,7 @@ public class AzureDevOpsService : IAzureDevOpsService
             {
                 Path = c["item"]?["path"]?.ToString(),
                 ChangeType = c["changeType"]?.ToString(),
-                OriginalPath = c["originalPath"]?.ToString()
+                OriginalPath = c["originalPath"]?["path"]?.ToString()
             })
             .Where(c => c.Path is not null)
             .ToList() ?? [];
@@ -674,8 +675,8 @@ public class AzureDevOpsService : IAzureDevOpsService
     public async Task<string?> GetFileContentAsync(
         string repositoryId, string path, string? commitId = null, CancellationToken ct = default)
     {
-        // includeContent=true zwraca treœæ w JSON-ie. Dla wersji binarnej trzeba by u¿yæ
-        // $format=octetStream — tu zak³adamy pliki tekstowe (kod, markdown).
+        // includeContent=true returns content in JSON. For binary files $format=octetStream would be needed â€”
+        // here we assume text files (code, markdown).
         var versionParam = commitId is null
             ? string.Empty
             : $"&versionDescriptor.version={commitId}&versionDescriptor.versionType=commit";
@@ -796,7 +797,7 @@ public class AzureDevOpsService : IAzureDevOpsService
     public async Task<string?> GetLatestCommitShaAsync(
         string repositoryId, string branch, CancellationToken ct = default)
     {
-        // Refs API: filter pomija prefix "refs/" – wystarczy "heads/{branch}".
+        // Refs API: filter omits the "refs/" prefix â€” "heads/{branch}" is sufficient.
         var url = $"{_project}/_apis/git/repositories/{repositoryId}/refs" +
                   $"?filter={Uri.EscapeDataString($"heads/{branch}")}" +
                   $"&api-version={_apiVersion}";
@@ -809,7 +810,7 @@ public class AzureDevOpsService : IAzureDevOpsService
         var json = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
         var refs = json?["value"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
 
-        // Pe³na nazwa "refs/heads/{branch}" — porównujemy precyzyjnie.
+        // Full name "refs/heads/{branch}" â€” compared precisely.
         var full = $"refs/heads/{branch}";
         var match = refs.FirstOrDefault(r =>
             string.Equals(r["name"]?.ToString(), full, StringComparison.OrdinalIgnoreCase));
@@ -820,15 +821,15 @@ public class AzureDevOpsService : IAzureDevOpsService
     public async Task<List<RepoFileChange>?> GetChangesBetweenCommitsAsync(
         string repositoryId, string? baseSha, string targetSha, CancellationToken ct = default)
     {
-        // Bez bazowego SHA nie mo¿emy zrobiæ diff-a — sygnalizujemy full-scan.
+        // Without a base SHA we cannot compute a diff â€” signal full-scan.
         if (string.IsNullOrEmpty(baseSha))
             return null;
 
         if (string.Equals(baseSha, targetSha, StringComparison.OrdinalIgnoreCase))
             return [];
 
-        // Git diffs/commits API zwraca paczki po max ~1000 zmian; bierzemy hojny $top
-        // i ewentualn¹ paginacjê dorzucimy gdy zacznie obcinaæ.
+        // Git diffs/commits API returns batches of up to ~1000 changes; we use a generous $top
+        // and will add pagination if it starts truncating.
         var url = $"{_project}/_apis/git/repositories/{repositoryId}/diffs/commits" +
                   $"?baseVersion={baseSha}&baseVersionType=commit" +
                   $"&targetVersion={targetSha}&targetVersionType=commit" +
@@ -861,10 +862,10 @@ public class AzureDevOpsService : IAzureDevOpsService
         string wikiId, string pagePath, string contentMarkdown,
         string? eTag = null, CancellationToken ct = default)
     {
-        // PUT /wiki/wikis/{wikiId}/pages?path={path} z opcjonalnym If-Match (ETag).
-        // Brak If-Match ? tworzy now¹ stronê (zwraca 201). Gdy strona istnieje:
-        // wymagany If-Match. Jeœli ETag null a strona istnieje, najpierw pobieramy
-        // aktualny ETag i ponawiamy zapis (race-free best-effort).
+        // PUT /wiki/wikis/{wikiId}/pages?path={path} with optional If-Match (ETag).
+        // No If-Match â†’ creates a new page (returns 201). When the page exists,
+        // If-Match is required. If eTag is null and the page exists, we first fetch
+        // the current ETag and retry the write (race-free best-effort).
         if (eTag is null)
         {
             var current = await GetWikiPageAsync(wikiId, pagePath, ct);
@@ -874,8 +875,7 @@ public class AzureDevOpsService : IAzureDevOpsService
 
         var result = await PutWikiPageAsync(wikiId, pagePath, contentMarkdown, eTag, ct);
 
-        // Konflikt ETagu (412 Precondition Failed) — strona zmieni³a siê miêdzy GET a PUT.
-        // Pobieramy œwie¿y ETag i ponawiamy raz.
+        // 412 = mismatched ETag â€” signal to retry with a refreshed ETag.
         if (result is null)
         {
             var refreshed = await GetWikiPageAsync(wikiId, pagePath, ct);
@@ -905,7 +905,7 @@ public class AzureDevOpsService : IAzureDevOpsService
 
         using var response = await _http.SendAsync(req, ct);
 
-        // 412 = niezgodny ETag — sygna³ do retry z odœwie¿onym ETagiem.
+        // 412 = mismatched ETag â€” signal to retry with a refreshed ETag.
         if (response.StatusCode == HttpStatusCode.PreconditionFailed)
             return null;
 
@@ -921,5 +921,4 @@ public class AzureDevOpsService : IAzureDevOpsService
             RemoteUrl = json?["remoteUrl"]?.ToString(),
             Created = response.StatusCode == HttpStatusCode.Created
         };
-    }
-}
+    }}    }}

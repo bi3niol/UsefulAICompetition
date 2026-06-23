@@ -3,9 +3,9 @@ using System.ComponentModel;
 namespace BSolution.Netwise.UsefulAI.WikiDocGenerator.App.Tools;
 
 /// <summary>
-/// Oznacza metodę jako narzędzie agenta AI. Dziedziczy po <see cref="DescriptionAttribute"/>
-/// — <c>AITool.FromMethod()</c> z Microsoft.Extensions.AI odczytuje opis i przekazuje
-/// go do LLM jako tool description.
+/// Marks a method as an AI agent tool. Inherits from <see cref="DescriptionAttribute"/>
+/// — <c>AITool.FromMethod()</c> from Microsoft.Extensions.AI reads the description
+/// and passes it to the LLM as the tool description.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class AgentToolAttribute : DescriptionAttribute
