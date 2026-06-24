@@ -61,7 +61,7 @@ DevOps Impact Analyzer jest aplikacją .NET 10 Azure Functions wykorzystującą 
 
 ### 🎬 Demo video
 
-[![▶ Zobacz krótkie demo działania](./docs/video-image.png)](./docs/useful-ai.mp4)
+[![▶ Zobacz krótkie demo działania](./docs/video-image.png)](https://github.com/user-attachments/assets/786c60f1-9ec3-4080-939d-13b6b2b744e0)
 
 W zależności od typu work itemu system generuje:
 
