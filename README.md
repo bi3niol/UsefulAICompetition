@@ -83,9 +83,9 @@ W zależności od typu work itemu system generuje:
 
 ## 🧭 Najkrócej
 
-DevOps Impact Analyzer zamienia rozproszoną wiedzę projektową w **konkretny, gotowy do użycia raport decyzyjny**. Dzięki temu zespoły podejmują lepsze decyzje wcześniej — zanim koszt zmian zacznie rosnąć. 💡
+DevOps Impact Analyzer zamienia rozproszoną wiedzę projektową w **konkretny, gotowy do użycia raport decyzyjny**. Dzięki temu zespoły podejmują lepsze decyzje wcześniej - zanim koszt zmian zacznie rosnąć. 💡
 
-Warto pamiętać, że jakość raportu w dużej mierze zależy od jakości danych dostępnych dla agenta. Dlatego należy dbać o jakość tworzonych work itemów i dokumentacji WIKI — im lepsze i bardziej kompletne źródła, tym trafniejsze i bardziej wartościowe raporty można otrzymać.
+Warto pamiętać, że jakość raportu w dużej mierze zależy od jakości danych dostępnych dla agenta. Dlatego należy dbać o jakość tworzonych work itemów i dokumentacji WIKI - im lepsze i bardziej kompletne źródła, tym trafniejsze i bardziej wartościowe raporty można otrzymać.
 
 ---
 
@@ -96,6 +96,9 @@ Warto pamiętać, że jakość raportu w dużej mierze zależy od jakości danyc
 - 🧩 [DevOps Impact Analyzer Extension](./BSolution.Netwise.UsefulAI/BSolution.Netwise.UsefulAI.DevOpsImpactAnalyzer.Extension/README.md)
 
 ## 🚀 Next steps
+
+- 💬 **Okienko chatu z agentem**  
+  Dodanie wbudowanego chatu z agentem, który umożliwi użytkownikowi zadawanie własnych pytań oraz dopytywanie o szczegóły i kontekst analizowanych zagadnień.
 
 - 🖼️ **Analiza załączonych obrazów (screenshots/mockupów)**  
   Największym brakującym usprawnieniem jest obsługa obrazów dołączanych do work itemów. Obecnie agent nie rozumie treści z załączonych grafik, przez co traci istotny kontekst. W praktyce błędy oraz nowe wymagania są często opisywane właśnie na zrzutach ekranu lub mockupach, więc ich analiza mogłaby znacząco podnieść jakość rozumienia i trafność raportów.
