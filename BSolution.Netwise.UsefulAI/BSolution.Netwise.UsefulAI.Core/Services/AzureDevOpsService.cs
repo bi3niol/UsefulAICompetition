@@ -921,4 +921,5 @@ public class AzureDevOpsService : IAzureDevOpsService
             RemoteUrl = json?["remoteUrl"]?.ToString(),
             Created = response.StatusCode == HttpStatusCode.Created
         };
-    }}    }}
+    }
+}
